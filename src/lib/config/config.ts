@@ -53,10 +53,26 @@ export interface AppConfig {
   autoSeed: boolean;
   /** Development user used until Hive Keychain auth lands in Phase 3. */
   devUser: string;
+  /** Mock Keychain behaviour. `reject` simulates a user declining the prompt. */
+  keychain: {
+    /** "approve" | "reject" — default authorization outcome of MockKeychain. */
+    defaultOutcome: "approve" | "reject";
+    /** Simulated signing latency, ms. */
+    latency: number;
+  };
   fees: {
-    platformFeeRate: number;
-    marketplaceFeeRate: number;
-    collectionCreationFee: number;
+    /**
+     * Cost, in HIVE, charged per mintable slot when a collection is deployed.
+     * creationCost = maxSupply x NFT_CREATION_COST_PER_MINT
+     */
+    nftCreationCostPerMint: number;
+    nftCreationCurrency: "HIVE";
+    /** Platform cut of every mint, in percent (e.g. 5 = 5%). */
+    platformMintFeePercent: number;
+    /** Platform cut of every marketplace sale, in percent. */
+    marketplaceFeePercent: number;
+    platformAccount: string;
+    marketAccount: string;
   };
 }
 
@@ -68,16 +84,58 @@ export const config: AppConfig = {
   databaseDriver: (env("DATABASE_DRIVER") as AppConfig["databaseDriver"] | undefined) ?? "memory",
   databaseFile: env("DATABASE_FILE") ?? ".data/hivemint.json",
   apiPort: num("API_PORT", 4000),
-  smartContractInterval: num("SMART_CONTRACT_INTERVAL", 1500),
+  smartContractInterval: num("SMART_CONTRACT_POLL_INTERVAL_MS", num("SMART_CONTRACT_INTERVAL", 1500)),
   smartContractMaxAttempts: num("SMART_CONTRACT_MAX_ATTEMPTS", 3),
   blockchainLatency: num("BLOCKCHAIN_LATENCY", 400),
   autoSeed: bool("AUTO_SEED", true),
   devUser: env("DEV_USER") ?? "alice",
+  keychain: {
+    defaultOutcome: (env("KEYCHAIN_DEFAULT_OUTCOME") as "approve" | "reject" | undefined) ?? "approve",
+    latency: num("KEYCHAIN_LATENCY", 120),
+  },
   fees: {
-    platformFeeRate: num("PLATFORM_FEE_RATE", 0.05),
-    marketplaceFeeRate: num("MARKETPLACE_FEE_RATE", 0.025),
-    collectionCreationFee: num("COLLECTION_CREATION_FEE", 25),
+    nftCreationCostPerMint: num("NFT_CREATION_COST_PER_MINT", 0.1),
+    nftCreationCurrency: "HIVE",
+    platformMintFeePercent: num("PLATFORM_MINT_FEE_PERCENT", 5),
+    marketplaceFeePercent: num("MARKETPLACE_FEE_PERCENT", 2.5),
+    platformAccount: env("PLATFORM_ACCOUNT") ?? "hivemint",
+    marketAccount: env("MARKET_ACCOUNT") ?? "hivemint-market",
   },
 };
 
 export const isProduction = config.nodeEnv === "production";
+
+const round3 = (value: number) => Number(value.toFixed(3));
+
+/** Collection deployment cost: maxSupply x NFT_CREATION_COST_PER_MINT. */
+export function collectionCreationCost(maxSupply: number): number {
+  return round3(maxSupply * config.fees.nftCreationCostPerMint);
+}
+
+/** Splits a mint payment into the platform cut and the creator payout. */
+export function splitMintPayment(mintPrice: number): {
+  mintPrice: number;
+  platformFee: number;
+  creatorShare: number;
+  total: number;
+} {
+  const platformFee = round3(mintPrice * (config.fees.platformMintFeePercent / 100));
+  return {
+    mintPrice: round3(mintPrice),
+    platformFee,
+    creatorShare: round3(mintPrice - platformFee),
+    total: round3(mintPrice),
+  };
+}
+
+/** Splits a marketplace sale into the marketplace fee and the seller payout. */
+export function splitSalePayment(price: number): {
+  price: number;
+  fee: number;
+  sellerProceeds: number;
+  total: number;
+} {
+  const fee = round3(price * (config.fees.marketplaceFeePercent / 100));
+  return { price: round3(price), fee, sellerProceeds: round3(price - fee), total: round3(price + fee) };
+}
+
