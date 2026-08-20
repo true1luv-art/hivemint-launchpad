@@ -285,6 +285,17 @@ export class SmartContractWorker {
     if (!reservation) throw new PermanentError("Collection is sold out");
     const mintNumber = reservation.mintNumber;
 
+    const nft = createNftDocument({
+      collection,
+      mintNumber,
+      owner: tx.hiveAccount,
+      // Weighted random selection driven by the collection's rarity configuration.
+      rarity: pickRarity(collection.rarities, Math.random),
+      mintTransactionId: tx.transactionId,
+      seedKey: `${collection.id}-${mintNumber}-${tx.transactionId}`,
+    });
+
+    let issue;
     try {
       const payment = await this.chain.transfer({
         from: tx.hiveAccount,
@@ -303,19 +314,7 @@ export class SmartContractWorker {
         memo: `Mint · ${collection.name}`,
       });
 
-      // Weighted random selection driven by the collection's rarity configuration.
-      const rarity = pickRarity(collection.rarities, Math.random);
-
-      var nft = createNftDocument({
-        collection,
-        mintNumber,
-        owner: tx.hiveAccount,
-        rarity,
-        mintTransactionId: tx.transactionId,
-        seedKey: `${collection.id}-${mintNumber}-${tx.transactionId}`,
-      });
-
-      var issue = await this.chain.issueNft({
+      issue = await this.chain.issueNft({
         symbol: collection.symbol,
         to: tx.hiveAccount,
         tokenId: nft.tokenId,
