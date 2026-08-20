@@ -37,6 +37,16 @@ export function fail(error: unknown): Response {
     const body: ApiErrorBody = { error: { code: error.code, message: error.message, details: error.details } };
     return new Response(JSON.stringify(body), { status: error.status, headers: baseHeaders });
   }
+  if (error instanceof ZodError) {
+    const body: ApiErrorBody = {
+      error: {
+        code: "VALIDATION_FAILED",
+        message: error.issues.map((i) => `${i.path.join(".") || "body"}: ${i.message}`).join("; "),
+        details: error.issues,
+      },
+    };
+    return new Response(JSON.stringify(body), { status: 400, headers: baseHeaders });
+  }
   const message = error instanceof Error ? error.message : "Unexpected server error";
   logger.error("API", "Unhandled error", error);
   return new Response(JSON.stringify({ error: { code: "INTERNAL", message } } satisfies ApiErrorBody), {
