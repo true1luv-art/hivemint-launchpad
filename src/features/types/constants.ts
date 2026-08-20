@@ -1,0 +1,48 @@
+/** Shared, runtime-neutral constants. Safe to import from UI, API and worker. */
+
+export const HIVE_CURRENCY = "HIVE" as const;
+
+export const PLATFORM_ACCOUNT = "hivemint";
+export const MARKET_ACCOUNT = "hivemint-market";
+
+export const PLATFORM_FEE_RATE = 0.05;
+export const MARKETPLACE_FEE_RATE = 0.025;
+export const COLLECTION_CREATION_FEE = 25;
+
+export const TRANSACTION_STATUS = {
+  PENDING: "pending",
+  PROCESSING: "processing",
+  PROCESSED: "processed",
+  FAILED: "failed",
+} as const;
+
+export const TRANSACTION_TYPES = [
+  "CREATE_COLLECTION",
+  "MINT_NFT",
+  "TRANSFER_NFT",
+  "LIST_NFT",
+  "BUY_NFT",
+  "CANCEL_LISTING",
+] as const;
+
+export const API_BASE = "/api";
+
+export const QUERY_KEYS = {
+  collections: ["collections"] as const,
+  collection: (id: string) => ["collections", id] as const,
+  nfts: (owner?: string) => ["nfts", owner ?? "all"] as const,
+  nft: (id: string) => ["nfts", id] as const,
+  listings: (collectionId?: string) => ["listings", collectionId ?? "all"] as const,
+  activity: (scope?: string) => ["activity", scope ?? "global"] as const,
+  creatorCollections: (creator: string) => ["creator", "collections", creator] as const,
+  transaction: (id: string) => ["transactions", id] as const,
+  me: ["me"] as const,
+  stats: ["stats"] as const,
+};
+
+export const TRANSACTION_LABELS: Record<string, string> = {
+  pending: "TRANSACTION REQUESTED",
+  processing: "PROCESSING",
+  processed: "CONFIRMED",
+  failed: "FAILED",
+};
