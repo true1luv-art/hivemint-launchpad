@@ -253,37 +253,29 @@ export async function handleApiRequest(
       const requestId = (body["requestId"] as string | undefined) ?? genRequestId();
       const payload = { ...body, requestId };
 
-      switch (a) {
-        case "collections": {
-          if (b) return fail(notFound());
-          const data = createCollectionSchema.parse(payload);
-          return json(await enqueueAndProcess({
-            type: "CREATE_COLLECTION" as TransactionType,
-            requestId,
-            amount: COLLECTION_CREATION_FEE,
-            payload: {
-              name: data.name,
-              symbol: data.symbol,
-              description: data.description,
-              image: data.image,
-              maxSupply: data.maxSupply,
-              mintPrice: data.mintPrice,
-              creatorFee: data.creatorFee,
-              platformFee: data.platformFee,
-              rarities: data.rarities,
-              metadataBaseUri: data.metadataBaseUri,
-            },
-          } as Omit<CreatePendingTransactionInput<"CREATE_COLLECTION">, "userId" | "hiveAccount">));
-        }
-        case "collections-mint": {
-          // synthetic case handled below
-          break;
-        }
-        default:
-          break;
+      // POST /api/collections  -> CREATE_COLLECTION
+      if (a === "collections" && !b) {
+        const data = createCollectionSchema.parse(payload);
+        return json(await enqueueAndProcess({
+          type: "CREATE_COLLECTION" as TransactionType,
+          requestId,
+          amount: COLLECTION_CREATION_FEE,
+          payload: {
+            name: data.name,
+            symbol: data.symbol,
+            description: data.description,
+            image: data.image,
+            maxSupply: data.maxSupply,
+            mintPrice: data.mintPrice,
+            creatorFee: data.creatorFee,
+            platformFee: data.platformFee,
+            rarities: data.rarities,
+            metadataBaseUri: data.metadataBaseUri,
+          },
+        } as Omit<CreatePendingTransactionInput<"CREATE_COLLECTION">, "userId" | "hiveAccount">));
       }
 
-      // mint: POST /api/collections/:id/mint
+      // POST /api/collections/:id/mint -> MINT_NFT
       if (a === "collections" && b && c === "mint") {
         const data = mintSchema.parse({ ...payload, collectionId: b });
         return json(await enqueueAndProcess({
