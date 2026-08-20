@@ -16,14 +16,13 @@ export const TRANSACTION_STATUS = {
   FAILED: "failed",
 } as const;
 
-export const TRANSACTION_TYPES = [
-  "CREATE_COLLECTION",
-  "MINT_NFT",
-  "TRANSFER_NFT",
-  "LIST_NFT",
-  "BUY_NFT",
-  "CANCEL_LISTING",
-] as const;
+/** Queued platform operations — processed by the smart-contract worker. */
+export const PLATFORM_TRANSACTION_TYPES = ["CREATE_COLLECTION", "MINT_NFT"] as const;
+
+/** Direct, user-signed (Keychain) operations — never queued. */
+export const DIRECT_TRANSACTION_TYPES = ["TRANSFER_NFT", "LIST_NFT", "BUY_NFT", "CANCEL_LISTING"] as const;
+
+export const TRANSACTION_TYPES = [...PLATFORM_TRANSACTION_TYPES, ...DIRECT_TRANSACTION_TYPES] as const;
 
 export const API_BASE = "/api";
 
