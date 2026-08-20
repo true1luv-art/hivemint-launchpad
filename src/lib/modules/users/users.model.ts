@@ -4,9 +4,9 @@ import type { CreateUserInput, UserDocument } from "./users.types";
 export const USERS_COLLECTION = "users";
 
 export const USERS_INDEXES = [
-  { field: "id" as const, unique: true },
-  { field: "username" as const, unique: true },
-];
+  { fields: ["id"] as const satisfies readonly string[], unique: true },
+  { fields: ["username"] as const satisfies readonly string[], unique: true },
+].map((i) => ({ fields: [...i.fields] as ("id" | "username")[], unique: i.unique }));
 
 export function createUserDocument(input: CreateUserInput): UserDocument {
   const timestamp = nowIso();
