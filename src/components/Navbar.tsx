@@ -26,7 +26,6 @@ export function Navbar() {
             <Link
               key={l.to}
               to={l.to}
-              activeOptions={{ exact: "exact" in l ? l.exact : false }}
               activeProps={{ className: "text-foreground bg-surface-raised" }}
               inactiveProps={{ className: "text-muted-foreground" }}
               className="rounded-lg px-3 py-2 text-sm font-medium transition-colors hover:text-foreground"
@@ -36,7 +35,9 @@ export function Navbar() {
           ))}
         </nav>
 
-        <div className="ml-auto flex items-center gap-2">
+        <NavSearch className="ml-auto hidden w-full max-w-sm md:block" />
+
+        <div className="ml-auto flex items-center gap-2 md:ml-0">
           <Link
             to="/creator/collections/new"
             className="hidden rounded-lg border border-border bg-surface px-3.5 py-2 text-sm font-medium transition-colors hover:border-border-strong sm:inline-flex"
