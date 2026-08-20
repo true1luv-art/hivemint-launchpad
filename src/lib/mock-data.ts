@@ -1,14 +1,24 @@
 import { generateArtwork, hashString, mulberry32 } from "./art";
+import { generateInventory } from "./traits/generator";
+import { buildCollectionTraitLayers } from "./traits/presets";
+import type { GeneratedToken, GeneratedTrait } from "./traits/types";
 import type {
   Activity,
   Collection,
   Listing,
   NFT,
+  NFTAttribute,
   Rarity,
   RarityConfig,
   Transaction,
   User,
 } from "./types";
+
+/**
+ * Ranking pool size cap. Rarity rank is computed across the whole collection,
+ * but seeding 5,000 tokens per collection is wasteful for a prototype.
+ */
+export const RANK_POOL_CAP = 600;
 
 export const CURRENT_USER: User = {
   username: "alice",
@@ -182,16 +192,7 @@ const COLLECTION_SEEDS: CollectionSeed[] = [
 const ADJECTIVES = ["Legendary", "Ancient", "Neon", "Prime", "Shadow", "Golden", "Frozen", "Solar"];
 const TYPES = ["Mining Rig", "Companion", "Vehicle", "Artifact", "Guardian", "Relic"];
 
-export function pickRarity(rarities: RarityConfig[], rand: () => number): Rarity {
-  const total = rarities.reduce((s, r) => s + r.weight, 0) || 100;
-  let roll = rand() * total;
-  for (const r of rarities) {
-    roll -= r.weight;
-    if (roll <= 0) return r.rarity;
-  }
-  return rarities[0]?.rarity ?? "Common";
-}
-
+/** Value multiplier derived from the token's rank percentile, not from an input. */
 export function rarityMultiplier(rarity: Rarity): number {
   switch (rarity) {
     case "Legendary":
@@ -205,41 +206,57 @@ export function rarityMultiplier(rarity: Rarity): number {
   }
 }
 
+/** Generated traits -> metadata attributes. Attributes always mirror traits. */
+export function traitsToAttributes(traits: GeneratedTrait[]): NFTAttribute[] {
+  return traits.map((trait) => ({ trait: trait.layerName, value: trait.traitValueName }));
+}
+
+/**
+ * Builds an NFT from an ALREADY GENERATED token. Traits, score, rank and class
+ * are inputs here — this function never rolls rarity.
+ */
 export function buildNFT(params: {
   collection: Collection;
   mintNumber: number;
   owner: string;
   createdAt: string;
-  rarity: Rarity;
+  token: GeneratedToken;
+  rankTotal: number;
   seedKey: string;
 }): NFT {
-  const { collection, mintNumber, owner, createdAt, rarity, seedKey } = params;
+  const { collection, mintNumber, owner, createdAt, token, rankTotal, seedKey } = params;
   const rand = mulberry32(hashString(seedKey));
   const noun = collection.name.split(" ")[0] ?? "Token";
   const adj = ADJECTIVES[Math.floor(rand() * ADJECTIVES.length)] ?? "Prime";
   const tokenId = mintNumber;
-  const power = 20 + Math.floor(rand() * 60) + Math.round(rarityMultiplier(rarity) * 3);
+  const rarity = token.rarityClass;
   const value = Number(
     (collection.mintPrice * rarityMultiplier(rarity) * (0.85 + rand() * 0.5)).toFixed(2),
   );
+  const traitSummary = token.traits
+    .filter((t) => t.traitValueName !== "None")
+    .slice(0, 3)
+    .map((t) => t.traitValueName)
+    .join(", ");
+
   return {
     id: `${collection.id}-${tokenId}`,
     collectionId: collection.id,
     collectionName: collection.name,
     tokenId,
     name: `${adj} ${noun} #${tokenId}`,
-    description: `A ${rarity.toLowerCase()} piece from ${collection.name}. Minted through the HiveMint launchpad and secured as a Hive Engine NFT.`,
+    description: `${traitSummary || "A unique combination"} — rank #${token.rarityRank} of ${rankTotal} in ${collection.name}. Minted through the HiveMint launchpad and secured as a Hive Engine NFT.`,
     image: generateArtwork(`${collection.id}-${tokenId}`, rarity),
     rarity,
+    traits: token.traits,
+    rarityScore: token.rarityScore,
+    rarityRank: token.rarityRank,
+    rarityRankTotal: rankTotal,
+    rarityClass: token.rarityClass,
     mintNumber,
     maxSupply: collection.maxSupply,
     owner,
-    attributes: [
-      { trait: "Rarity", value: rarity },
-      { trait: "Power", value: Math.min(99, power) },
-      { trait: "Type", value: TYPES[Math.floor(rand() * TYPES.length)] ?? "Artifact" },
-      { trait: "Generation", value: 1 },
-    ],
+    attributes: traitsToAttributes(token.traits),
     metadataUri: `${collection.metadataBaseUri}${tokenId}.json`,
     estimatedValue: value,
     createdAt,
@@ -269,6 +286,7 @@ export function createSeedData(): SeedData {
     creatorFee: 85,
     platformFee: 5,
     rarities: DEFAULT_RARITIES.map((r) => ({ ...r })),
+    traitLayers: buildCollectionTraitLayers(`col-${i + 1}`, s.nouns),
     status: s.minted >= s.maxSupply ? "Sold Out" : "Minting",
     createdAt: ago(s.createdDaysAgo * DAY),
     floorPrice: s.floorPrice,
@@ -281,46 +299,56 @@ export function createSeedData(): SeedData {
   const nfts: NFT[] = [];
   const rand = mulberry32(20260820);
 
+  /**
+   * Every catalogue NFT comes from a real weighted generation run, ranked
+   * against its whole collection pool. Pools are capped so seeding stays fast.
+   */
   collections.forEach((collection, ci) => {
+    const poolSize = Math.min(collection.minted, RANK_POOL_CAP);
+    const inventory = generateInventory({
+      layers: collection.traitLayers,
+      count: poolSize,
+      seedKey: `${collection.id}-inventory`,
+    });
     const perCollection = ci < 4 ? 9 : 7;
+
     for (let i = 0; i < perCollection; i++) {
-      const mintNumber = Math.max(1, Math.floor(rand() * collection.minted) || i + 1);
-      const rarity = pickRarity(collection.rarities, rand);
+      const token = inventory.tokens[Math.floor(rand() * inventory.tokens.length)];
+      if (!token) continue;
       // Ensure @alice owns a healthy slice of the catalogue.
-      const owner =
-        i < 3 && ci < 5 ? "alice" : USERS[Math.floor(rand() * USERS.length)] ?? "bob";
+      const owner = i < 3 && ci < 5 ? "alice" : USERS[Math.floor(rand() * USERS.length)] ?? "bob";
       nfts.push(
         buildNFT({
           collection,
-          mintNumber,
+          mintNumber: token.tokenNumber,
           owner,
-          rarity,
+          token,
+          rankTotal: poolSize,
           createdAt: ago(Math.floor(rand() * 40 * DAY) + HOUR),
           seedKey: `${collection.id}-seed-${i}`,
         }),
       );
     }
-  });
 
-  // Guarantee the showcase NFT from the brief.
-  const ccg = collections[0]!;
-  const showcase = buildNFT({
-    collection: ccg,
-    mintNumber: 1842,
-    owner: "alice",
-    rarity: "Legendary",
-    createdAt: ago(3 * DAY),
-    seedKey: "showcase-1842",
+    // Showcase piece: the rarest token of the flagship collection.
+    if (ci === 0) {
+      const rarest = [...inventory.tokens].sort((a, b) => a.rarityRank - b.rarityRank)[0];
+      if (rarest) {
+        const showcase = buildNFT({
+          collection,
+          mintNumber: 1842,
+          owner: "alice",
+          token: rarest,
+          rankTotal: poolSize,
+          createdAt: ago(3 * DAY),
+          seedKey: "showcase-1842",
+        });
+        showcase.name = `${rarest.rarityClass} Miner #1842`;
+        showcase.estimatedValue = 52;
+        nfts.unshift(showcase);
+      }
+    }
   });
-  showcase.name = "Legendary Miner #1842";
-  showcase.attributes = [
-    { trait: "Rarity", value: "Legendary" },
-    { trait: "Power", value: 95 },
-    { trait: "Type", value: "Mining Rig" },
-    { trait: "Generation", value: 1 },
-  ];
-  showcase.estimatedValue = 52;
-  nfts.unshift(showcase);
 
   // Deduplicate by id (random mint numbers may collide).
   const seen = new Set<string>();

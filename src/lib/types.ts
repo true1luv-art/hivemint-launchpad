@@ -1,7 +1,17 @@
+import type { GeneratedTrait, TraitLayerConfig } from "./traits/types";
+
+/**
+ * Rarity is a DERIVED display bucket, never a generation input.
+ * It is computed from the collection-wide rarity rank.
+ */
 export type Rarity = "Common" | "Rare" | "Epic" | "Legendary";
 
 export const RARITIES: Rarity[] = ["Common", "Rare", "Epic", "Legendary"];
 
+/**
+ * @deprecated Legacy rarity-first configuration. Retained only so old records
+ * keep deserialising — new collections configure `traitLayers` instead.
+ */
 export interface RarityConfig {
   rarity: Rarity;
   /** percentage, 0-100 */
@@ -35,7 +45,10 @@ export interface Collection {
   mintPrice: number;
   creatorFee: number;
   platformFee: number;
+  /** @deprecated superseded by `traitLayers`; kept for legacy records. */
   rarities: RarityConfig[];
+  /** Generative configuration: layers -> values -> weights. */
+  traitLayers: TraitLayerConfig[];
   status: CollectionStatus;
   createdAt: string;
   floorPrice: number;
@@ -69,7 +82,17 @@ export interface NFT {
   name: string;
   description: string;
   image: string;
+  /** Derived display bucket — see `rarityClass`. */
   rarity: Rarity;
+  /** The actual generated traits behind this token. */
+  traits: GeneratedTrait[];
+  /** Sum of 1 / probability across every trait. */
+  rarityScore: number;
+  /** 1 = rarest in the collection. */
+  rarityRank: number;
+  /** Size of the ranked pool the rank was computed against. */
+  rarityRankTotal: number;
+  rarityClass: Rarity;
   mintNumber: number;
   maxSupply: number;
   owner: string;
