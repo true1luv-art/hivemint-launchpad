@@ -29,7 +29,7 @@ export class BaseRepository<T extends WithId> {
         const db: Database = await getDatabase();
         const col = db.collection<T>(this.collectionName);
         for (const index of this.indexes) {
-          await col.createIndex(index.field, { unique: index.unique ?? false });
+          await col.createIndex(index.fields, { unique: index.unique ?? false, ...(index.name ? { name: index.name } : {}) });
         }
         return col;
       })();
