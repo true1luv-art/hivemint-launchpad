@@ -131,7 +131,8 @@ export class MockIPFSProvider implements StorageProvider {
     const out: StorageObject[] = [];
     for (const [index, file] of files.entries()) {
       options?.onProgress?.({ completed: index, total: files.length, filename: file.filename, phase: "uploading" });
-      out.push(await this.uploadFile(file, { ...options, onProgress: undefined }));
+      const { onProgress: _ignored, ...rest } = options ?? {};
+      out.push(await this.uploadFile(file, rest));
       options?.onProgress?.({
         completed: index + 1,
         total: files.length,
