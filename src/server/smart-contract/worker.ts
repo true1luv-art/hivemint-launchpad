@@ -279,45 +279,56 @@ export class SmartContractWorker {
     const total = round(collection.mintPrice + platformFee);
     if (buyer.hiveBalance < total) throw new PermanentError("Insufficient HIVE balance");
 
-    const payment = await this.chain.transfer({
-      from: tx.hiveAccount,
-      to: PLATFORM_ACCOUNT,
-      amount: total,
-      currency: "HIVE",
-      memo: `Mint · ${collection.name}`,
-    });
-    await emitAppEvent(APP_EVENTS.PAYMENT_CONFIRMED, {
-      transactionId: tx.transactionId,
-      hiveTransactionId: payment.hiveTransactionId,
-      from: tx.hiveAccount,
-      to: PLATFORM_ACCOUNT,
-      amount: total,
-      currency: "HIVE",
-      memo: `Mint · ${collection.name}`,
-    });
+    // Reserve the supply slot BEFORE payment or any chain call so concurrent
+    // mints can never overrun maxSupply. Released again if anything fails.
+    const reservation = await nftCollectionsRepository.reserveMint(collection.id);
+    if (!reservation) throw new PermanentError("Collection is sold out");
+    const mintNumber = reservation.mintNumber;
 
-    // Weighted random selection driven by the collection's rarity configuration.
-    const rarity = pickRarity(collection.rarities, Math.random);
-    const mintNumber = await nftsRepository.nextMintNumber(collection.id);
+    try {
+      const payment = await this.chain.transfer({
+        from: tx.hiveAccount,
+        to: PLATFORM_ACCOUNT,
+        amount: total,
+        currency: "HIVE",
+        memo: `Mint · ${collection.name}`,
+      });
+      await emitAppEvent(APP_EVENTS.PAYMENT_CONFIRMED, {
+        transactionId: tx.transactionId,
+        hiveTransactionId: payment.hiveTransactionId,
+        from: tx.hiveAccount,
+        to: PLATFORM_ACCOUNT,
+        amount: total,
+        currency: "HIVE",
+        memo: `Mint · ${collection.name}`,
+      });
 
-    const nft = createNftDocument({
-      collection,
-      mintNumber,
-      owner: tx.hiveAccount,
-      rarity,
-      mintTransactionId: tx.transactionId,
-      seedKey: `${collection.id}-${mintNumber}-${tx.transactionId}`,
-    });
+      // Weighted random selection driven by the collection's rarity configuration.
+      const rarity = pickRarity(collection.rarities, Math.random);
 
-    const issue = await this.chain.issueNft({
-      symbol: collection.symbol,
-      to: tx.hiveAccount,
-      tokenId: nft.tokenId,
-      metadataUri: nft.metadataUri,
-    });
+      var nft = createNftDocument({
+        collection,
+        mintNumber,
+        owner: tx.hiveAccount,
+        rarity,
+        mintTransactionId: tx.transactionId,
+        seedKey: `${collection.id}-${mintNumber}-${tx.transactionId}`,
+      });
 
-    await nftsRepository.insert(nft);
-    await nftCollectionsRepository.incrementMinted(collection.id, total);
+      var issue = await this.chain.issueNft({
+        symbol: collection.symbol,
+        to: tx.hiveAccount,
+        tokenId: nft.tokenId,
+        metadataUri: nft.metadataUri,
+      });
+
+      await nftsRepository.insert(nft);
+    } catch (error) {
+      await nftCollectionsRepository.releaseMint(collection.id);
+      throw error;
+    }
+
+    await nftCollectionsRepository.addVolume(collection.id, total);
     const holders = await nftsRepository.countHolders(collection.id);
     await nftCollectionsRepository.patch(collection.id, { holders });
 
