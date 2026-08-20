@@ -2,13 +2,11 @@ import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { Hexagon, Menu, X } from "lucide-react";
 
+import { NavSearch } from "@/components/NavSearch";
 import { WalletButton } from "@/components/WalletButton";
 import { cn } from "@/lib/utils";
 
-const links = [
-  { to: "/", label: "Dashboard", exact: true },
-  { to: "/collections", label: "Collections" },
-] as const;
+const links = [{ to: "/collections", label: "Collections" }] as const;
 
 export function Navbar() {
   const [open, setOpen] = useState(false);
