@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { Loader2, Rocket } from "lucide-react";
 import { toast } from "sonner";
@@ -13,7 +13,15 @@ import { generateArtwork } from "@/lib/art";
 import { hive, num } from "@/lib/format";
 import { DEFAULT_RARITIES } from "@/lib/mock-data";
 import type { Rarity, RarityConfig } from "@/lib/types";
-import { COLLECTION_CREATION_FEE } from "@/services";
+import { collectionCreationCost, config } from "@/lib/config/config";
+import { AssetUploader, type PickedFile } from "@/components/AssetUploader";
+import { Progress } from "@/components/ui/progress";
+import {
+  uploadCollectionAssets,
+  validateUploadInput,
+  type CollectionAssetBundle,
+  type UploadState,
+} from "@/lib/storage/collection-upload";
 import { useAppStore } from "@/store/useAppStore";
 import { cn } from "@/lib/utils";
 
@@ -35,11 +43,47 @@ export function CreateCollectionForm() {
   const [rarities, setRarities] = useState<RarityConfig[]>(DEFAULT_RARITIES.map((r) => ({ ...r })));
   const [state, setState] = useState<TxState>("idle");
   const [imageSeed, setImageSeed] = useState(1);
+  const [coverFile, setCoverFile] = useState<PickedFile | null>(null);
+  const [assetFiles, setAssetFiles] = useState<PickedFile[]>([]);
+  const [reusableAssets, setReusableAssets] = useState(true);
+  const [upload, setUpload] = useState<UploadState | null>(null);
+  const [bundle, setBundle] = useState<CollectionAssetBundle | null>(null);
+
+  // Object URLs must be released when the picked files change.
+  useEffect(
+    () => () => {
+      if (coverFile) URL.revokeObjectURL(coverFile.previewUrl);
+    },
+    [coverFile],
+  );
+  useEffect(
+    () => () => {
+      assetFiles.forEach((f) => URL.revokeObjectURL(f.previewUrl));
+    },
+    [assetFiles],
+  );
 
   const image = useMemo(
     () => generateArtwork(`preview-${symbol}-${name}-${imageSeed}`, "Epic"),
     [symbol, name, imageSeed],
   );
+
+  const supply = Number(maxSupply) || 0;
+  const creationCost = collectionCreationCost(supply);
+  const assetIssues = useMemo(() => {
+    if (!coverFile || assetFiles.length === 0) return [];
+    return validateUploadInput({
+      name,
+      symbol,
+      description,
+      creator: "alice",
+      maxSupply: supply,
+      mintPrice: Number(mintPrice) || 0,
+      reusableAssets,
+      collectionImage: coverFile.file,
+      nftAssets: assetFiles.map((f) => f.file),
+    });
+  }, [coverFile, assetFiles, name, symbol, description, supply, mintPrice, reusableAssets]);
 
   const rarityTotal = rarities.reduce((s, r) => s + r.weight, 0);
   const valid =
@@ -47,33 +91,70 @@ export function CreateCollectionForm() {
     symbol.trim().length > 1 &&
     Number(maxSupply) > 0 &&
     Number(mintPrice) > 0 &&
-    rarityTotal === 100;
+    rarityTotal === 100 &&
+    !!coverFile &&
+    assetFiles.length > 0 &&
+    assetIssues.length === 0;
 
   const setWeight = (rarity: Rarity, weight: number) =>
     setRarities((rs) => rs.map((r) => (r.rarity === rarity ? { ...r, weight } : r)));
 
   const submit = async () => {
-    if (!valid) {
-      toast.error("Check the form", { description: "Rarity weights must total exactly 100%." });
+    if (!valid || !coverFile) {
+      toast.error("Check the form", {
+        description:
+          assetIssues[0]?.message ?? "Upload the collection artwork and NFT assets, and make rarity total 100%.",
+      });
       return;
     }
-    if (balance < COLLECTION_CREATION_FEE) {
-      toast.error("Insufficient HIVE balance");
+    if (balance < creationCost) {
+      toast.error("Insufficient HIVE balance", {
+        description: `Deploying ${num(supply)} NFTs costs ${hive(creationCost)}.`,
+      });
       return;
     }
     setState("pending");
     try {
+      // 1. Assets first — no transaction exists until every CID is pinned.
+      const uploaded =
+        bundle ??
+        (await uploadCollectionAssets(
+          {
+            name: name.trim(),
+            symbol: symbol.trim().toUpperCase(),
+            description: description.trim(),
+            creator: "alice",
+            maxSupply: supply,
+            mintPrice: Number(mintPrice),
+            reusableAssets,
+            collectionImage: coverFile.file,
+            nftAssets: assetFiles.map((f) => f.file),
+          },
+          setUpload,
+        ));
+      setBundle(uploaded);
+
+      // 2. Then deploy, carrying ipfs:// references only.
       const collection = await createCollection({
         name: name.trim(),
         symbol: symbol.trim().toUpperCase(),
         description: description.trim(),
-        image,
-        maxSupply: Number(maxSupply),
+        image: coverFile.previewUrl,
+        maxSupply: supply,
         mintPrice: Number(mintPrice),
         creatorFee: Number(creatorFee),
         platformFee: Number(platformFee),
         rarities,
-        metadataBaseUri: metadataBaseUri.trim(),
+        metadataBaseUri: uploaded.metadataRootUri,
+        creationCost,
+        assets: {
+          collectionImageUri: uploaded.collectionImageUri,
+          collectionMetadataUri: uploaded.collectionMetadataUri,
+          assetRootUri: uploaded.assetRootUri,
+          metadataRootUri: uploaded.metadataRootUri,
+          assetCount: uploaded.items.length,
+          reusableAssets: uploaded.reusableAssets,
+        },
       });
       setState("success");
       toast.success("Collection created", { description: `${collection.name} is live` });
@@ -100,11 +181,90 @@ export function CreateCollectionForm() {
           <Field label="Description">
             <Textarea rows={4} value={description} onChange={(e) => setDescription(e.target.value)} />
           </Field>
-          <Field label="Collection image" hint="Generated artwork placeholder — upload arrives with storage.">
-            <Button variant="outline" type="button" onClick={() => setImageSeed((s) => s + 1)}>
-              Regenerate artwork
-            </Button>
-          </Field>
+        </section>
+
+        <section className="surface-card space-y-4 p-6">
+          <div className="flex items-center justify-between">
+            <h2 className="font-display text-lg font-semibold">Collection assets</h2>
+            <span className="text-xs text-muted-foreground">Stored on IPFS (mock)</span>
+          </div>
+
+          <AssetUploader
+            label="Collection artwork"
+            hint={`PNG, JPG, WEBP or GIF · up to ${(config.storage.maxCollectionAssetSize / 1024 / 1024).toFixed(0)}MB`}
+            accept={config.storage.supportedImageTypes.join(",")}
+            files={coverFile ? [coverFile] : []}
+            disabled={state === "pending"}
+            onPick={(files) => {
+              const file = files[0];
+              if (!file) return;
+              setBundle(null);
+              setCoverFile({ file, previewUrl: URL.createObjectURL(file) });
+            }}
+            onRemove={() => setCoverFile(null)}
+          />
+
+          <AssetUploader
+            label="NFT assets"
+            hint={`Name files 1.png, 2.png … to control token numbers · up to ${config.storage.maxNftAssets} files`}
+            accept={config.storage.supportedImageTypes.join(",")}
+            multiple
+            files={assetFiles}
+            disabled={state === "pending"}
+            onPick={(files) => {
+              setBundle(null);
+              setAssetFiles((prev) => [
+                ...prev,
+                ...files.map((file) => ({ file, previewUrl: URL.createObjectURL(file) })),
+              ]);
+            }}
+            onRemove={(index) => setAssetFiles((prev) => prev.filter((_, i) => i !== index))}
+          />
+
+          <label className="flex items-start gap-3 rounded-lg border border-border p-3 text-sm">
+            <input
+              type="checkbox"
+              className="mt-1"
+              checked={reusableAssets}
+              onChange={(e) => setReusableAssets(e.target.checked)}
+            />
+            <span>
+              Reuse assets across mints
+              <span className="block text-xs text-muted-foreground">
+                Off: you must upload one asset per token ({num(supply)} files).
+              </span>
+            </span>
+          </label>
+
+          <div className="rounded-lg border border-border p-3 text-sm">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Assets ready</span>
+              <span className="font-medium">
+                {assetFiles.length} / {reusableAssets ? assetFiles.length : num(supply)}
+              </span>
+            </div>
+            {upload ? (
+              <div className="mt-3 space-y-2">
+                <Progress value={upload.total ? (upload.completed / upload.total) * 100 : 0} />
+                <p className="text-xs text-muted-foreground">
+                  {upload.stage === "done" ? "Pinned to IPFS" : `${upload.stage} · ${upload.filename}`} (
+                  {upload.completed}/{upload.total})
+                </p>
+              </div>
+            ) : null}
+            {bundle ? (
+              <p className="mt-2 break-all font-mono text-[11px] text-muted-foreground">{bundle.assetRootUri}</p>
+            ) : null}
+            {assetIssues.length ? (
+              <ul className="mt-2 space-y-1 text-xs text-destructive">
+                {assetIssues.slice(0, 4).map((issue, i) => (
+                  <li key={i}>
+                    {issue.filename}: {issue.message}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
         </section>
 
         <section className="surface-card space-y-4 p-6">
@@ -159,7 +319,11 @@ export function CreateCollectionForm() {
 
       <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">
         <section className="surface-card overflow-hidden">
-          <img src={image} alt="Collection preview artwork" className="aspect-square w-full object-cover" />
+          <img
+            src={coverFile?.previewUrl ?? image}
+            alt="Collection preview artwork"
+            className="aspect-square w-full object-cover"
+          />
           <div className="space-y-3 p-5">
             <div>
               <p className="text-xs text-muted-foreground">Live preview</p>
@@ -181,8 +345,10 @@ export function CreateCollectionForm() {
 
         <section className="surface-card space-y-3 p-5 text-sm">
           <div className="flex justify-between">
-            <span className="text-muted-foreground">Deployment fee</span>
-            <span className="font-medium">{hive(COLLECTION_CREATION_FEE)}</span>
+            <span className="text-muted-foreground">
+              Deployment fee · {num(supply)} × {config.fees.nftCreationCostPerMint} HIVE
+            </span>
+            <span className="font-medium">{hive(creationCost)}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">Your balance</span>
