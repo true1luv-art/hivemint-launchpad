@@ -249,7 +249,7 @@ export async function handleApiRequest(
 
     /* --------------------------- mutations ------------------------- */
     if (isPost) {
-      const body = request ? await readJson<Record<string, unknown>>(request) : {};
+      const body = await readBody(request);
       const requestId = (body["requestId"] as string | undefined) ?? genRequestId();
       const payload = { ...body, requestId };
 
