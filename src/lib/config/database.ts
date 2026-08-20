@@ -37,8 +37,14 @@ export interface DbCollection<T extends WithId> {
   findOneAndUpdate(filter: Filter<T>, patch: Partial<T>, options?: FindOptions<T>): Promise<T | null>;
   deleteOne(filter: Filter<T>): Promise<boolean>;
   count(filter?: Filter<T>): Promise<number>;
-  /** Registers a uniqueness constraint enforced on insert/update. */
-  createIndex(field: keyof T, options?: { unique?: boolean }): Promise<void>;
+  /**
+   * Declares an index. Single or compound. The memory driver only enforces the
+   * `unique` constraint (lookups are linear scans); the MongoDB driver will
+   * translate the same declaration into `createIndex({ a: 1, b: 1 })`.
+   */
+  createIndex(fields: (keyof T)[], options?: { unique?: boolean; name?: string }): Promise<void>;
+  /** Declared indexes, for diagnostics and Mongo bootstrap. */
+  listIndexes(): Promise<{ fields: string[]; unique: boolean; name: string }[]>;
   clear(): Promise<void>;
 }
 
