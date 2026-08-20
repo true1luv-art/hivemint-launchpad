@@ -295,7 +295,7 @@ class MemoryDatabase implements Database {
 /* ------------------------------------------------------------------ */
 
 interface DbGlobal {
-  __hivemint_db?: Promise<Database>;
+  __hivemint_db?: Promise<Database> | undefined;
 }
 const globalRef = globalThis as unknown as DbGlobal;
 
