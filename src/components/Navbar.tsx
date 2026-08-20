@@ -57,6 +57,7 @@ export function Navbar() {
 
       <nav className={cn("border-t border-border lg:hidden", open ? "block" : "hidden")}>
         <div className="mx-auto grid max-w-[1400px] gap-1 px-4 py-3">
+          <NavSearch className="mb-2 md:hidden" onNavigate={() => setOpen(false)} />
           {[...links, { to: "/creator/collections/new", label: "Create Collection" } as const].map((l) => (
             <Link
               key={l.to}
