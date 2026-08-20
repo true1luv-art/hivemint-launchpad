@@ -20,7 +20,7 @@ async function main() {
   logger.info("SMART-CONTRACT", "Starting worker process", {
     driver: config.databaseDriver,
     database: config.databaseName,
-    pollIntervalMs: config.workerPollIntervalMs ?? 1000,
+    pollIntervalMs: config.smartContractInterval,
   });
 
   await ensureSeeded();
