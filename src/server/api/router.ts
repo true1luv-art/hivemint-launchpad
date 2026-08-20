@@ -12,7 +12,9 @@
  */
 import { config } from "@/lib/config/config";
 import { logger } from "@/lib/config/logger";
-import { COLLECTION_CREATION_FEE } from "@/features/types/constants";
+import { collectionCreationCost } from "@/lib/config/config";
+import { prepareCollection } from "@/server/collections/collection-creation.service";
+import { nftAssetsRepository } from "@/lib/modules/nft-assets/nft-assets.repository";
 import { getEventBus } from "@/features/events/action";
 import { getWorker } from "@/server/smart-contract";
 import { getMarketplaceService } from "@/server/marketplace/marketplace.service";
@@ -175,6 +177,10 @@ export async function handleApiRequest(
           ]);
           return json({ ok: true, driver: config.databaseDriver, worker: getWorker().id, counts: { collections, nfts, listings, activity, users } });
         }
+        case "creation-cost": {
+          const supply = Number(params.get("maxSupply") ?? "0");
+          return json({ maxSupply: supply, cost: collectionCreationCost(Number.isFinite(supply) ? supply : 0), currency: "HIVE" });
+        }
         case "stats": {
           return json(await computeStats());
         }
@@ -225,6 +231,22 @@ export async function handleApiRequest(
                 supply: collection.maxSupply,
                 volume: collection.volume,
               },
+            });
+          }
+          if (b && c === "assets") {
+            const collection = await nftCollectionsRepository.findById(b);
+            if (!collection) return fail(notFound("Collection not found"));
+            return json({
+              collectionId: b,
+              creationState: collection.creationState,
+              storage: {
+                collectionImageUri: collection.collectionImageUri ?? null,
+                collectionMetadataUri: collection.collectionMetadataUri ?? null,
+                assetRootUri: collection.assetRootUri ?? null,
+                metadataRootUri: collection.metadataRootUri ?? null,
+                reusableAssets: collection.reusableAssets ?? false,
+              },
+              assets: await nftAssetsRepository.listByCollection(b),
             });
           }
           if (b && c === "listings") return json({ listings: await marketplaceListingsRepository.listByCollection(b) });
@@ -305,26 +327,57 @@ export async function handleApiRequest(
       const requestId = (body["requestId"] as string | undefined) ?? genRequestId();
       const payload = { ...body, requestId };
 
-      // POST /api/collections  -> CREATE_COLLECTION
+      // POST /api/collections  -> CREATE_COLLECTION (assets must already be pinned)
       if (a === "collections" && !b) {
         const data = createCollectionSchema.parse(payload);
-        return json(await enqueueAndProcess({
+
+        // Idempotency: a retried request never creates a second collection.
+        const existing = await transactionsPendingRepository.findByRequestId(requestId);
+        if (existing) {
+          const receipt = await transactionsProcessedRepository.findByTransactionId(existing.transactionId);
+          return json({
+            transactionId: existing.transactionId,
+            requestId,
+            type: existing.type,
+            status: receipt?.status ?? existing.status,
+            duplicate: true,
+            collectionId: existing.collectionId ?? null,
+            receipt: receipt ?? null,
+          });
+        }
+
+        const prepared = await prepareCollection({
+          creator: ACTOR,
+          name: data.name,
+          symbol: data.symbol,
+          description: data.description,
+          image: data.image,
+          maxSupply: data.maxSupply,
+          mintPrice: data.mintPrice,
+          creatorFee: data.creatorFee,
+          platformFee: data.platformFee,
+          rarities: data.rarities,
+          metadataBaseUri: data.metadataBaseUri,
+          assets: data.assets,
+        });
+
+        const result = await enqueueAndProcess({
           type: "CREATE_COLLECTION" as TransactionType,
           requestId,
-          amount: COLLECTION_CREATION_FEE,
-          payload: {
-            name: data.name,
-            symbol: data.symbol,
-            description: data.description,
-            image: data.image,
-            maxSupply: data.maxSupply,
-            mintPrice: data.mintPrice,
-            creatorFee: data.creatorFee,
-            platformFee: data.platformFee,
-            rarities: data.rarities,
-            metadataBaseUri: data.metadataBaseUri,
-          },
-        } as Omit<CreatePendingTransactionInput<"CREATE_COLLECTION">, "userId" | "hiveAccount">));
+          collectionId: prepared.collectionId,
+          amount: prepared.creationCost,
+          payload: prepared.payload,
+        } as Omit<CreatePendingTransactionInput<"CREATE_COLLECTION">, "userId" | "hiveAccount">);
+
+        const collection = await nftCollectionsRepository.findById(prepared.collectionId);
+        return json({
+          ...result,
+          collectionId: prepared.collectionId,
+          creationCost: prepared.creationCost,
+          assetCount: prepared.assetCount,
+          creationState: collection?.creationState ?? "FAILED",
+          collection,
+        });
       }
 
       // POST /api/collections/:id/mint -> MINT_NFT
