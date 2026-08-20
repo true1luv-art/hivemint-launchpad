@@ -187,6 +187,45 @@ export async function handleApiRequest(
             return json({ collections: list });
           }
           if (b && c === "nfts") return json({ nfts: await nftsRepository.listByCollection(b) });
+          if (b && c === "inventory") {
+            // Collection-centric marketplace read model: NFTs joined with their
+            // active listing index. `isListed` is DERIVED, never stored on the NFT.
+            const collection = await nftCollectionsRepository.findById(b);
+            if (!collection) return fail(notFound("Collection not found"));
+            const [nfts, listings, activity] = await Promise.all([
+              nftsRepository.listByCollection(b),
+              marketplaceListingsRepository.listByCollection(b),
+              activityRepository.listByCollection(b, parseIntParam(params.get("activityLimit"), 25)),
+            ]);
+            const active = listings.filter((l) => l.status === "active");
+            const byNft = new Map(active.map((l) => [l.nftId, l]));
+            const items = nfts.map((nft) => {
+              const listing = byNft.get(nft.id);
+              return {
+                ...nft,
+                isListed: Boolean(listing),
+                listingId: listing?.id ?? null,
+                listingPrice: listing?.price ?? null,
+                listingCurrency: listing?.currency ?? null,
+                seller: listing?.seller ?? null,
+              };
+            });
+            const prices = active.map((l) => l.price);
+            return json({
+              collection,
+              nfts: items,
+              listings: active,
+              activity,
+              market: {
+                listed: active.length,
+                floorPrice: prices.length ? Math.min(...prices) : 0,
+                owners: new Set(nfts.map((n) => n.owner)).size,
+                minted: collection.minted,
+                supply: collection.maxSupply,
+                volume: collection.volume,
+              },
+            });
+          }
           if (b && c === "listings") return json({ listings: await marketplaceListingsRepository.listByCollection(b) });
           if (b && c === "activity") return json({ activity: await activityRepository.listByCollection(b, parseIntParam(params.get("limit"), 50)) });
           if (b) {
