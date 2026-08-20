@@ -11,7 +11,8 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "server:smart-contract": "tsx src/server/smart-contract/main.ts",
-    "test:phase25": "tsx src/server/tests/phase25.test.ts"
+    "test:phase25": "tsx src/server/tests/phase25.test.ts",
+    "test:phase25b": "tsx src/server/tests/phase25b.test.ts"
   },
   "overrides": {
     "rolldown": "1.2.1"

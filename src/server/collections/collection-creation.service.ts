@@ -16,6 +16,7 @@ import { nftCollectionsRepository } from "@/lib/modules/nft-collections/nft-coll
 import { createNftAssetDocument } from "@/lib/modules/nft-assets/nft-assets.model";
 import { nftAssetsRepository } from "@/lib/modules/nft-assets/nft-assets.repository";
 import type { RarityConfig } from "@/lib/types";
+import type { PendingTransactionPayloads } from "@/lib/modules/transactions-pending/transactions-pending.types";
 
 export class CollectionCreationError extends Error {
   readonly code = "COLLECTION_CREATION_REJECTED";
@@ -96,7 +97,7 @@ export interface PreparedCollection {
   creationCost: number;
   assetCount: number;
   /** Reference-only payload for the CREATE_COLLECTION transaction. */
-  payload: Record<string, unknown>;
+  payload: PendingTransactionPayloads["CREATE_COLLECTION"] & Record<string, unknown>;
 }
 
 /**
