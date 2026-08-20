@@ -45,7 +45,10 @@ export interface Collection {
   mintPrice: number;
   creatorFee: number;
   platformFee: number;
+  /** @deprecated superseded by `traitLayers`; kept for legacy records. */
   rarities: RarityConfig[];
+  /** Generative configuration: layers -> values -> weights. */
+  traitLayers: TraitLayerConfig[];
   status: CollectionStatus;
   createdAt: string;
   floorPrice: number;
