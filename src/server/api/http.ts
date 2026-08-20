@@ -48,6 +48,15 @@ export function fail(error: unknown): Response {
     };
     return new Response(JSON.stringify(body), { status: 400, headers: baseHeaders });
   }
+  // Direct marketplace failures are user-fixable business-rule errors, not 500s.
+  if (error instanceof Error && error.name === "KeychainRejectedError") {
+    const body: ApiErrorBody = { error: { code: "KEYCHAIN_REJECTED", message: error.message } };
+    return new Response(JSON.stringify(body), { status: 400, headers: baseHeaders });
+  }
+  if (error instanceof Error && error.name === "MarketplaceError") {
+    const body: ApiErrorBody = { error: { code: "MARKETPLACE_REJECTED", message: error.message } };
+    return new Response(JSON.stringify(body), { status: 409, headers: baseHeaders });
+  }
   const message = error instanceof Error ? error.message : "Unexpected server error";
   logger.error("API", "Unhandled error", error);
   return new Response(JSON.stringify({ error: { code: "INTERNAL", message } } satisfies ApiErrorBody), {
