@@ -2,13 +2,11 @@ import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { Hexagon, Menu, X } from "lucide-react";
 
+import { NavSearch } from "@/components/NavSearch";
 import { WalletButton } from "@/components/WalletButton";
 import { cn } from "@/lib/utils";
 
-const links = [
-  { to: "/", label: "Dashboard", exact: true },
-  { to: "/collections", label: "Collections" },
-] as const;
+const links = [{ to: "/collections", label: "Collections" }] as const;
 
 export function Navbar() {
   const [open, setOpen] = useState(false);
@@ -28,7 +26,6 @@ export function Navbar() {
             <Link
               key={l.to}
               to={l.to}
-              activeOptions={{ exact: "exact" in l ? l.exact : false }}
               activeProps={{ className: "text-foreground bg-surface-raised" }}
               inactiveProps={{ className: "text-muted-foreground" }}
               className="rounded-lg px-3 py-2 text-sm font-medium transition-colors hover:text-foreground"
@@ -38,7 +35,9 @@ export function Navbar() {
           ))}
         </nav>
 
-        <div className="ml-auto flex items-center gap-2">
+        <NavSearch className="ml-auto hidden w-full max-w-sm md:block" />
+
+        <div className="ml-auto flex items-center gap-2 md:ml-0">
           <Link
             to="/creator/collections/new"
             className="hidden rounded-lg border border-border bg-surface px-3.5 py-2 text-sm font-medium transition-colors hover:border-border-strong sm:inline-flex"
@@ -58,6 +57,7 @@ export function Navbar() {
 
       <nav className={cn("border-t border-border lg:hidden", open ? "block" : "hidden")}>
         <div className="mx-auto grid max-w-[1400px] gap-1 px-4 py-3">
+          <NavSearch className="mb-2 md:hidden" onNavigate={() => setOpen(false)} />
           {[...links, { to: "/creator/collections/new", label: "Create Collection" } as const].map((l) => (
             <Link
               key={l.to}
