@@ -93,8 +93,14 @@ function CollectionDetail() {
 
       <section className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="font-display text-xl font-semibold">Minted items ({items.length})</h2>
-          <FilterPills options={RARITY_FILTERS} value={rarity} onChange={setRarity} />
+          <div>
+            <h2 className="font-display text-xl font-semibold">Items ({items.length})</h2>
+            <p className="text-xs text-muted-foreground">{forSaleCount} listed for sale</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <FilterPills options={STATUS_FILTERS} value={status} onChange={setStatus} />
+            <FilterPills options={RARITY_FILTERS} value={rarity} onChange={setRarity} />
+          </div>
         </div>
         {items.length ? (
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
