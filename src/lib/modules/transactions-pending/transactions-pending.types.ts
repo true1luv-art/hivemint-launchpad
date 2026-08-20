@@ -1,10 +1,18 @@
-export type TransactionType =
-  | "CREATE_COLLECTION"
-  | "MINT_NFT"
-  | "TRANSFER_NFT"
-  | "LIST_NFT"
-  | "BUY_NFT"
-  | "CANCEL_LISTING";
+/**
+ * Phase 2.5 boundary.
+ *
+ * The pending queue is reserved for PLATFORM operations — the ones that mutate
+ * supply / deploy contracts and therefore must be serialized by the
+ * smart-contract worker. User-signed marketplace operations run directly
+ * through `MarketplaceService` and never enter this queue.
+ */
+export type TransactionType = "CREATE_COLLECTION" | "MINT_NFT";
+
+/** Direct, user-signed (Keychain) operations. Not queued. */
+export type DirectTransactionType = "TRANSFER_NFT" | "LIST_NFT" | "BUY_NFT" | "CANCEL_LISTING";
+
+/** Anything that can end up in `transactions_processed`. */
+export type AnyTransactionType = TransactionType | DirectTransactionType;
 
 export type PendingTransactionStatus = "pending" | "processing" | "processed" | "failed";
 
@@ -22,10 +30,6 @@ export interface PendingTransactionPayloads {
     metadataBaseUri?: string | undefined;
   };
   MINT_NFT: { collectionId: string; quantity: number };
-  TRANSFER_NFT: { nftId: string; to: string };
-  LIST_NFT: { nftId: string; price: number };
-  BUY_NFT: { listingId: string };
-  CANCEL_LISTING: { listingId: string };
 }
 
 export interface PendingTransaction {
