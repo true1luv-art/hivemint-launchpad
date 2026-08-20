@@ -57,6 +57,11 @@ export function fail(error: unknown): Response {
     const body: ApiErrorBody = { error: { code: "MARKETPLACE_REJECTED", message: error.message } };
     return new Response(JSON.stringify(body), { status: 409, headers: baseHeaders });
   }
+  // Asset/storage preconditions are user-fixable too (Phase 2.5B).
+  if (error instanceof Error && (error.name === "CollectionCreationError" || error.name === "StorageValidationError")) {
+    const body: ApiErrorBody = { error: { code: "ASSETS_NOT_READY", message: error.message } };
+    return new Response(JSON.stringify(body), { status: 400, headers: baseHeaders });
+  }
   const message = error instanceof Error ? error.message : "Unexpected server error";
   logger.error("API", "Unhandled error", error);
   return new Response(JSON.stringify({ error: { code: "INTERNAL", message } } satisfies ApiErrorBody), {
