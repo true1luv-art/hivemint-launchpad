@@ -124,18 +124,26 @@ class MemoryCollection<T extends WithId> implements DbCollection<T> {
   }
 
   private assertUnique(doc: T, ignoreId?: string) {
-    for (const field of this.uniqueFields) {
-      const value = doc[field];
-      if (value === undefined || value === null) continue;
+    for (const fields of this.uniqueKeys) {
+      if (fields.some((f) => doc[f] === undefined || doc[f] === null)) continue;
       for (const existing of this.docs.values()) {
         if (existing.id === ignoreId) continue;
-        if (existing[field] === value) throw new UniqueConstraintError(this.name, String(field), value);
+        if (fields.every((f) => existing[f] === doc[f])) {
+          throw new UniqueConstraintError(this.name, fields.map(String).join("+"), fields.map((f) => doc[f]).join("|"));
+        }
       }
     }
   }
 
-  async createIndex(field: keyof T, options?: { unique?: boolean }) {
-    if (options?.unique) this.uniqueFields.add(field);
+  async createIndex(fields: (keyof T)[], options?: { unique?: boolean; name?: string }) {
+    const name = options?.name ?? fields.map(String).join("_");
+    if (this.indexes.some((i) => i.name === name)) return;
+    this.indexes.push({ fields: fields.map(String), unique: options?.unique ?? false, name });
+    if (options?.unique) this.uniqueKeys.push(fields);
+  }
+
+  async listIndexes() {
+    return this.indexes.map((i) => ({ ...i }));
   }
 
   async find(filter?: Filter<T>, options?: FindOptions<T>) {
