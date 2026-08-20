@@ -82,7 +82,17 @@ export interface NFT {
   name: string;
   description: string;
   image: string;
+  /** Derived display bucket — see `rarityClass`. */
   rarity: Rarity;
+  /** The actual generated traits behind this token. */
+  traits: GeneratedTrait[];
+  /** Sum of 1 / probability across every trait. */
+  rarityScore: number;
+  /** 1 = rarest in the collection. */
+  rarityRank: number;
+  /** Size of the ranked pool the rank was computed against. */
+  rarityRankTotal: number;
+  rarityClass: Rarity;
   mintNumber: number;
   maxSupply: number;
   owner: string;
