@@ -52,7 +52,9 @@ export async function runEventContractTests(): Promise<Result[]> {
         seen.push(event.type);
         assert(event.payload.price === 50, "sold price mismatch");
       });
-      bus.on("*", (event: AppEvent) => seen.push(event.type));
+      bus.on("*", (event: AppEvent) => {
+        seen.push(event.type);
+      });
       await bus.emit(
         createAction(APP_EVENTS.NFT_SOLD, {
           transactionId: "TX-2",
