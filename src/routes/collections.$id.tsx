@@ -40,9 +40,21 @@ function CollectionDetail() {
   const items = useMemo(
     () =>
       nfts
-        .filter((n) => n.collectionId === id && (rarity === "All" || n.rarity === rarity))
+        .filter((n) => {
+          if (n.collectionId !== id) return false;
+          if (rarity !== "All" && n.rarity !== rarity) return false;
+          const listed = listings.some((l) => l.nftId === n.id);
+          if (status === "For sale" && !listed) return false;
+          if (status === "Not listed" && listed) return false;
+          return true;
+        })
         .sort((a, b) => a.mintNumber - b.mintNumber),
-    [nfts, id, rarity],
+    [nfts, id, rarity, status, listings],
+  );
+
+  const forSaleCount = useMemo(
+    () => nfts.filter((n) => n.collectionId === id && listings.some((l) => l.nftId === n.id)).length,
+    [nfts, listings, id],
   );
 
   const collectionActivity = useMemo(
