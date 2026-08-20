@@ -1,13 +1,16 @@
 import { newId, nowIso } from "../../config/repository";
+import type { IndexSpec } from "../../config/repository";
 import type { CreatePendingTransactionInput, PendingTransaction, TransactionType } from "./transactions-pending.types";
 
 export const TRANSACTIONS_PENDING_COLLECTION = "transactions_pending";
 
 /** Unique constraints are the backbone of idempotency. */
-export const TRANSACTIONS_PENDING_INDEXES = [
-  { field: "id" as const, unique: true },
-  { field: "transactionId" as const, unique: true },
-  { field: "requestId" as const, unique: true },
+export const TRANSACTIONS_PENDING_INDEXES: IndexSpec<PendingTransaction>[] = [
+  { fields: ["id"], unique: true },
+  { fields: ["transactionId"], unique: true },
+  { fields: ["requestId"], unique: true },
+  { fields: ["status", "createdAt"] },
+  { fields: ["type"] },
 ];
 
 export function newTransactionId(): string {

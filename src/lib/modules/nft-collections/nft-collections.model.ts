@@ -1,12 +1,14 @@
 import { generateArtwork } from "@/lib/art";
 import { newId, nowIso } from "../../config/repository";
+import type { IndexSpec } from "../../config/repository";
 import type { CollectionDocument, CreateCollectionInput } from "./nft-collections.types";
 
 export const NFT_COLLECTIONS_COLLECTION = "nft_collections";
 
-export const NFT_COLLECTIONS_INDEXES = [
-  { field: "id" as const, unique: true },
-  { field: "symbol" as const, unique: true },
+export const NFT_COLLECTIONS_INDEXES: IndexSpec<CollectionDocument>[] = [
+  { fields: ["id"], unique: true },
+  { fields: ["symbol"], unique: true },
+  { fields: ["creator"] },
 ];
 
 export function createCollectionDocument(input: CreateCollectionInput): CollectionDocument {

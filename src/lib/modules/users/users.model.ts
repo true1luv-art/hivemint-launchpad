@@ -1,11 +1,12 @@
 import { newId, nowIso } from "../../config/repository";
+import type { IndexSpec } from "../../config/repository";
 import type { CreateUserInput, UserDocument } from "./users.types";
 
 export const USERS_COLLECTION = "users";
 
-export const USERS_INDEXES = [
-  { field: "id" as const, unique: true },
-  { field: "username" as const, unique: true },
+export const USERS_INDEXES: IndexSpec<UserDocument>[] = [
+  { fields: ["id"], unique: true },
+  { fields: ["username"], unique: true },
 ];
 
 export function createUserDocument(input: CreateUserInput): UserDocument {

@@ -1,11 +1,16 @@
 import { newId, nowIso } from "../../config/repository";
+import type { IndexSpec } from "../../config/repository";
 import type { MarketplaceListingDocument } from "./marketplace-listings.types";
 
 export const MARKETPLACE_LISTINGS_COLLECTION = "marketplace_listings";
 
-export const MARKETPLACE_LISTINGS_INDEXES = [
-  { field: "id" as const, unique: true },
-  { field: "marketTransactionId" as const, unique: true },
+export const MARKETPLACE_LISTINGS_INDEXES: IndexSpec<MarketplaceListingDocument>[] = [
+  { fields: ["id"], unique: true },
+  { fields: ["marketTransactionId"], unique: true },
+  { fields: ["nftId", "status"] },
+  { fields: ["collectionId", "status"] },
+  { fields: ["seller", "status"] },
+  { fields: ["collectionId", "price"] },
 ];
 
 export interface CreateListingInput {

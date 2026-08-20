@@ -1,4 +1,5 @@
 import { newId, nowIso } from "../../config/repository";
+import type { IndexSpec } from "../../config/repository";
 import { buildNFT } from "@/lib/mock-data";
 import type { Collection, Rarity } from "@/lib/types";
 import type { CollectionDocument } from "../nft-collections/nft-collections.types";
@@ -7,9 +8,12 @@ import type { NftDocument } from "./nfts.types";
 
 export const NFTS_COLLECTION = "nfts";
 
-export const NFTS_INDEXES = [
-  { field: "id" as const, unique: true },
-  { field: "mintTransactionId" as const, unique: false },
+export const NFTS_INDEXES: IndexSpec<NftDocument>[] = [
+  { fields: ["id"], unique: true },
+  { fields: ["collectionId"] },
+  { fields: ["owner"] },
+  { fields: ["collectionId", "tokenId"], unique: true },
+  { fields: ["mintTransactionId"] },
 ];
 
 export interface BuildNftInput {

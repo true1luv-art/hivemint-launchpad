@@ -1,9 +1,14 @@
 import type { Database, DbCollection, Filter, FindOptions, WithId } from "./database";
 import { getDatabase } from "./database";
 
+/**
+ * Index declaration. `fields` is ordered — a compound index `[a, b]` maps to
+ * MongoDB `createIndex({ a: 1, b: 1 })` in Phase 3.
+ */
 export interface IndexSpec<T> {
-  field: keyof T;
+  fields: (keyof T)[];
   unique?: boolean;
+  name?: string;
 }
 
 /**
@@ -24,7 +29,7 @@ export class BaseRepository<T extends WithId> {
         const db: Database = await getDatabase();
         const col = db.collection<T>(this.collectionName);
         for (const index of this.indexes) {
-          await col.createIndex(index.field, { unique: index.unique ?? false });
+          await col.createIndex(index.fields, { unique: index.unique ?? false, ...(index.name ? { name: index.name } : {}) });
         }
         return col;
       })();
