@@ -78,11 +78,11 @@ interface MutationResult {
   receipt: {
     status: string;
     hiveTransactionId: string;
-    blockNumber?: number;
-    collectionId?: string;
-    nftId?: string;
+    blockNumber: number | undefined;
+    collectionId: string | undefined;
+    nftId: string | undefined;
     result: Record<string, unknown>;
-    error?: string;
+    error: string | undefined;
   } | null;
 }
 
@@ -250,7 +250,7 @@ export async function handleApiRequest(
     /* --------------------------- mutations ------------------------- */
     if (isPost) {
       const body = request ? await readJson<Record<string, unknown>>(request) : {};
-      const requestId = (body.requestId as string | undefined) ?? genRequestId();
+      const requestId = (body["requestId"] as string | undefined) ?? genRequestId();
       const payload = { ...body, requestId };
 
       switch (a) {
