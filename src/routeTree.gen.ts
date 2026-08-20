@@ -10,33 +10,167 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ActivityRouteImport } from './routes/activity'
+import { Route as MarketplaceRouteImport } from './routes/marketplace'
+import { Route as CollectionsIndexRouteImport } from './routes/collections.index'
+import { Route as CollectionsIdRouteImport } from './routes/collections.$id'
+import { Route as CreatorIndexRouteImport } from './routes/creator.index'
+import { Route as MintCollectionIdRouteImport } from './routes/mint.$collectionId'
+import { Route as NftsIndexRouteImport } from './routes/nfts.index'
+import { Route as NftsIdRouteImport } from './routes/nfts.$id'
+import { Route as CreatorCollectionsIndexRouteImport } from './routes/creator.collections.index'
+import { Route as CreatorCollectionsNewRouteImport } from './routes/creator.collections.new'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ActivityRoute = ActivityRouteImport.update({
+  id: '/activity',
+  path: '/activity',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MarketplaceRoute = MarketplaceRouteImport.update({
+  id: '/marketplace',
+  path: '/marketplace',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CollectionsIndexRoute = CollectionsIndexRouteImport.update({
+  id: '/collections/',
+  path: '/collections/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CollectionsIdRoute = CollectionsIdRouteImport.update({
+  id: '/collections/$id',
+  path: '/collections/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CreatorIndexRoute = CreatorIndexRouteImport.update({
+  id: '/creator/',
+  path: '/creator/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MintCollectionIdRoute = MintCollectionIdRouteImport.update({
+  id: '/mint/$collectionId',
+  path: '/mint/$collectionId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NftsIndexRoute = NftsIndexRouteImport.update({
+  id: '/nfts/',
+  path: '/nfts/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NftsIdRoute = NftsIdRouteImport.update({
+  id: '/nfts/$id',
+  path: '/nfts/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CreatorCollectionsIndexRoute = CreatorCollectionsIndexRouteImport.update({
+  id: '/creator/collections/',
+  path: '/creator/collections/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CreatorCollectionsNewRoute = CreatorCollectionsNewRouteImport.update({
+  id: '/creator/collections/new',
+  path: '/creator/collections/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/activity': typeof ActivityRoute
+  '/marketplace': typeof MarketplaceRoute
+  '/collections/$id': typeof CollectionsIdRoute
+  '/mint/$collectionId': typeof MintCollectionIdRoute
+  '/nfts/$id': typeof NftsIdRoute
+  '/collections/': typeof CollectionsIndexRoute
+  '/creator/': typeof CreatorIndexRoute
+  '/nfts/': typeof NftsIndexRoute
+  '/creator/collections/new': typeof CreatorCollectionsNewRoute
+  '/creator/collections/': typeof CreatorCollectionsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/activity': typeof ActivityRoute
+  '/marketplace': typeof MarketplaceRoute
+  '/collections/$id': typeof CollectionsIdRoute
+  '/mint/$collectionId': typeof MintCollectionIdRoute
+  '/nfts/$id': typeof NftsIdRoute
+  '/collections': typeof CollectionsIndexRoute
+  '/creator': typeof CreatorIndexRoute
+  '/nfts': typeof NftsIndexRoute
+  '/creator/collections/new': typeof CreatorCollectionsNewRoute
+  '/creator/collections': typeof CreatorCollectionsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/activity': typeof ActivityRoute
+  '/marketplace': typeof MarketplaceRoute
+  '/collections/$id': typeof CollectionsIdRoute
+  '/mint/$collectionId': typeof MintCollectionIdRoute
+  '/nfts/$id': typeof NftsIdRoute
+  '/collections/': typeof CollectionsIndexRoute
+  '/creator/': typeof CreatorIndexRoute
+  '/nfts/': typeof NftsIndexRoute
+  '/creator/collections/new': typeof CreatorCollectionsNewRoute
+  '/creator/collections/': typeof CreatorCollectionsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/activity'
+    | '/marketplace'
+    | '/collections/$id'
+    | '/mint/$collectionId'
+    | '/nfts/$id'
+    | '/collections/'
+    | '/creator/'
+    | '/nfts/'
+    | '/creator/collections/new'
+    | '/creator/collections/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/activity'
+    | '/marketplace'
+    | '/collections/$id'
+    | '/mint/$collectionId'
+    | '/nfts/$id'
+    | '/collections'
+    | '/creator'
+    | '/nfts'
+    | '/creator/collections/new'
+    | '/creator/collections'
+  id:
+    | '__root__'
+    | '/'
+    | '/activity'
+    | '/marketplace'
+    | '/collections/$id'
+    | '/mint/$collectionId'
+    | '/nfts/$id'
+    | '/collections/'
+    | '/creator/'
+    | '/nfts/'
+    | '/creator/collections/new'
+    | '/creator/collections/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ActivityRoute: typeof ActivityRoute
+  MarketplaceRoute: typeof MarketplaceRoute
+  CollectionsIdRoute: typeof CollectionsIdRoute
+  MintCollectionIdRoute: typeof MintCollectionIdRoute
+  NftsIdRoute: typeof NftsIdRoute
+  CollectionsIndexRoute: typeof CollectionsIndexRoute
+  CreatorIndexRoute: typeof CreatorIndexRoute
+  NftsIndexRoute: typeof NftsIndexRoute
+  CreatorCollectionsNewRoute: typeof CreatorCollectionsNewRoute
+  CreatorCollectionsIndexRoute: typeof CreatorCollectionsIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +182,91 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/activity': {
+      id: '/activity'
+      path: '/activity'
+      fullPath: '/activity'
+      preLoaderRoute: typeof ActivityRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/marketplace': {
+      id: '/marketplace'
+      path: '/marketplace'
+      fullPath: '/marketplace'
+      preLoaderRoute: typeof MarketplaceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/collections/': {
+      id: '/collections/'
+      path: '/collections'
+      fullPath: '/collections/'
+      preLoaderRoute: typeof CollectionsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/collections/$id': {
+      id: '/collections/$id'
+      path: '/collections/$id'
+      fullPath: '/collections/$id'
+      preLoaderRoute: typeof CollectionsIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/creator/': {
+      id: '/creator/'
+      path: '/creator'
+      fullPath: '/creator/'
+      preLoaderRoute: typeof CreatorIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/mint/$collectionId': {
+      id: '/mint/$collectionId'
+      path: '/mint/$collectionId'
+      fullPath: '/mint/$collectionId'
+      preLoaderRoute: typeof MintCollectionIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/nfts/': {
+      id: '/nfts/'
+      path: '/nfts'
+      fullPath: '/nfts/'
+      preLoaderRoute: typeof NftsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/nfts/$id': {
+      id: '/nfts/$id'
+      path: '/nfts/$id'
+      fullPath: '/nfts/$id'
+      preLoaderRoute: typeof NftsIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/creator/collections/': {
+      id: '/creator/collections/'
+      path: '/creator/collections'
+      fullPath: '/creator/collections/'
+      preLoaderRoute: typeof CreatorCollectionsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/creator/collections/new': {
+      id: '/creator/collections/new'
+      path: '/creator/collections/new'
+      fullPath: '/creator/collections/new'
+      preLoaderRoute: typeof CreatorCollectionsNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ActivityRoute: ActivityRoute,
+  MarketplaceRoute: MarketplaceRoute,
+  CollectionsIdRoute: CollectionsIdRoute,
+  MintCollectionIdRoute: MintCollectionIdRoute,
+  NftsIdRoute: NftsIdRoute,
+  CollectionsIndexRoute: CollectionsIndexRoute,
+  CreatorIndexRoute: CreatorIndexRoute,
+  NftsIndexRoute: NftsIndexRoute,
+  CreatorCollectionsNewRoute: CreatorCollectionsNewRoute,
+  CreatorCollectionsIndexRoute: CreatorCollectionsIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
