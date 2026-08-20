@@ -105,7 +105,8 @@ export class UniqueConstraintError extends Error {
 
 class MemoryCollection<T extends WithId> implements DbCollection<T> {
   private docs = new Map<string, T>();
-  private uniqueFields = new Set<keyof T>();
+  private uniqueKeys: (keyof T)[][] = [];
+  private indexes: { fields: string[]; unique: boolean; name: string }[] = [];
 
   constructor(
     readonly name: string,
