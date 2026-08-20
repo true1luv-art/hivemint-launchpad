@@ -9,9 +9,6 @@ const links = [
   { to: "/", label: "Dashboard", exact: true },
   { to: "/collections", label: "Collections" },
   { to: "/marketplace", label: "Marketplace" },
-  { to: "/nfts", label: "My NFTs" },
-  { to: "/activity", label: "Activity" },
-  { to: "/creator", label: "Creator" },
 ] as const;
 
 export function Navbar() {

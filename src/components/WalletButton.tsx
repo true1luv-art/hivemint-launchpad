@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { ChevronDown, LogOut, Images, Activity as ActivityIcon, Wallet, Loader2 } from "lucide-react";
+import { ChevronDown, LogOut, Images, Activity as ActivityIcon, Wallet, Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -60,6 +60,11 @@ export function WalletButton() {
           <p className="font-display text-base font-semibold">{hive(balance)}</p>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
+        <DropdownMenuItem asChild>
+          <Link to="/creator" className="cursor-pointer">
+            <Sparkles className="size-4" /> Creator
+          </Link>
+        </DropdownMenuItem>
         <DropdownMenuItem asChild>
           <Link to="/nfts" className="cursor-pointer">
             <Images className="size-4" /> My NFTs
