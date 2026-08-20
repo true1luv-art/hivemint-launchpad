@@ -15,6 +15,7 @@ import { logger } from "@/lib/config/logger";
 import { COLLECTION_CREATION_FEE } from "@/features/types/constants";
 import { getEventBus } from "@/features/events/action";
 import { getWorker } from "@/server/smart-contract";
+import { getMarketplaceService } from "@/server/marketplace/marketplace.service";
 import { ensureSeeded } from "@/server/seed/seed";
 import { activityRepository } from "@/lib/modules/activity/activity.repository";
 import { marketplaceListingsRepository } from "@/lib/modules/marketplace-listings/marketplace-listings.repository";
