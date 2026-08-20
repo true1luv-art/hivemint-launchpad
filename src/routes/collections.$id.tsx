@@ -34,6 +34,7 @@ function CollectionDetail() {
   const listings = useAppStore((s) => s.listings);
   const activities = useAppStore((s) => s.activities);
   const [rarity, setRarity] = useState<(typeof RARITY_FILTERS)[number]>("All");
+  const [status, setStatus] = useState<(typeof STATUS_FILTERS)[number]>("All items");
   const [mintOpen, setMintOpen] = useState(false);
 
   const items = useMemo(
