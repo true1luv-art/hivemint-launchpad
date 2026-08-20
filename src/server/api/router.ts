@@ -338,46 +338,28 @@ export async function handleApiRequest(
         } as Omit<CreatePendingTransactionInput<"MINT_NFT">, "userId" | "hiveAccount">));
       }
 
+      /* ---- direct, user-signed marketplace operations (no queue) ---- */
+      const marketplace = getMarketplaceService();
+      const actor = { requestId, hiveAccount: ACTOR };
+
       if (a === "nfts" && b && c === "list") {
         const data = listSchema.parse({ ...payload, nftId: b });
-        return json(await enqueueAndProcess({
-          type: "LIST_NFT" as TransactionType,
-          requestId,
-          nftId: b,
-          amount: data.price,
-          payload: { nftId: b, price: data.price },
-        } as Omit<CreatePendingTransactionInput<"LIST_NFT">, "userId" | "hiveAccount">));
+        return json(await marketplace.list(actor, { nftId: b, price: data.price }));
       }
 
       if (a === "nfts" && b && c === "transfer") {
         const data = transferSchema.parse({ ...payload, nftId: b });
-        return json(await enqueueAndProcess({
-          type: "TRANSFER_NFT" as TransactionType,
-          requestId,
-          nftId: b,
-          amount: 0,
-          payload: { nftId: b, to: data.to },
-        } as Omit<CreatePendingTransactionInput<"TRANSFER_NFT">, "userId" | "hiveAccount">));
+        return json(await marketplace.transfer(actor, { nftId: b, to: data.to }));
       }
 
       if (a === "listings" && b && c === "buy") {
-        const data = buySchema.parse({ ...payload, listingId: b });
-        return json(await enqueueAndProcess({
-          type: "BUY_NFT" as TransactionType,
-          requestId,
-          amount: 0,
-          payload: { listingId: b },
-        } as Omit<CreatePendingTransactionInput<"BUY_NFT">, "userId" | "hiveAccount">));
+        buySchema.parse({ ...payload, listingId: b });
+        return json(await marketplace.buy(actor, { listingId: b }));
       }
 
       if (a === "listings" && b && c === "cancel") {
-        const data = cancelSchema.parse({ ...payload, listingId: b });
-        return json(await enqueueAndProcess({
-          type: "CANCEL_LISTING" as TransactionType,
-          requestId,
-          amount: 0,
-          payload: { listingId: b },
-        } as Omit<CreatePendingTransactionInput<"CANCEL_LISTING">, "userId" | "hiveAccount">));
+        cancelSchema.parse({ ...payload, listingId: b });
+        return json(await marketplace.cancel(actor, { listingId: b }));
       }
 
       // dev helpers
