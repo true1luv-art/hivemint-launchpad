@@ -15,6 +15,10 @@ export interface NftDocument {
   mintNumber: number;
   maxSupply: number;
   metadataUri: string;
+  /** ipfs:// image reference from the collection asset set (Phase 2.5B). */
+  imageUri?: string | undefined;
+  /** id of the `nft_assets` row this token reuses — assets are never duplicated. */
+  assetId?: string | undefined;
   attributes: NFTAttribute[];
   estimatedValue: number;
   status: NftDocumentStatus;

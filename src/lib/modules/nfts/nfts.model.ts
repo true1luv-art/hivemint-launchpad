@@ -79,6 +79,7 @@ export function toNftView(doc: NftDocument) {
     owner: doc.owner,
     attributes: doc.attributes,
     metadataUri: doc.metadataUri,
+    imageUri: doc.imageUri,
     estimatedValue: doc.estimatedValue,
     createdAt: doc.createdAt,
     status: doc.status === "listed" ? ("Listed" as const) : ("Owned" as const),

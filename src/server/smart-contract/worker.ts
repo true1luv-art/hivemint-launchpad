@@ -120,6 +120,9 @@ export class SmartContractWorker {
         result: {},
         error: message,
       });
+      if (tx.type === "CREATE_COLLECTION" && tx.collectionId) {
+        await nftCollectionsRepository.patch(tx.collectionId, { creationState: "FAILED", creationError: message });
+      }
       await transactionsPendingRepository.markFailed(tx.id, message);
       logger.error("TX", `Transaction failed ${tx.transactionId}: ${message}`);
       await emitAppEvent(APP_EVENTS.TRANSACTION_FAILED, {
@@ -345,6 +348,15 @@ export class SmartContractWorker {
     if (!reservation) throw new PermanentError("Collection is sold out");
     const mintNumber = reservation.mintNumber;
 
+    // Rule 24: reuse the collection's uploaded asset set — never duplicate files.
+    const assetCount = await nftAssetsRepository.countByCollection(collection.id);
+    const asset = assetCount
+      ? ((await nftAssetsRepository.findByToken(collection.id, mintNumber)) ??
+        (collection.reusableAssets
+          ? (await nftAssetsRepository.listByCollection(collection.id))[(mintNumber - 1) % assetCount]
+          : null))
+      : null;
+
     const nft = createNftDocument({
       collection,
       mintNumber,
@@ -354,6 +366,12 @@ export class SmartContractWorker {
       mintTransactionId: tx.transactionId,
       seedKey: `${collection.id}-${mintNumber}-${tx.transactionId}`,
     });
+
+    if (asset) {
+      nft.imageUri = asset.imageUri;
+      nft.metadataUri = asset.metadataUri;
+      nft.assetId = asset.id;
+    }
 
     let issue;
     try {
