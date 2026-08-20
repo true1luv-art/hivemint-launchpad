@@ -1,9 +1,15 @@
 import { newId, nowIso } from "../../config/repository";
+import type { IndexSpec } from "../../config/repository";
 import type { ActivityDocument, CreateActivityInput } from "./activity.types";
 
 export const ACTIVITY_COLLECTION = "activity";
 
-export const ACTIVITY_INDEXES = [{ field: "id" as const, unique: true }];
+export const ACTIVITY_INDEXES: IndexSpec<ActivityDocument>[] = [
+  { fields: ["id"], unique: true },
+  { fields: ["collectionId", "createdAt"] },
+  { fields: ["nftId", "createdAt"] },
+  { fields: ["actor", "createdAt"] },
+];
 
 export function createActivityDocument(input: CreateActivityInput): ActivityDocument {
   return {

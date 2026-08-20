@@ -1,11 +1,15 @@
 import { newId, nowIso } from "../../config/repository";
+import type { IndexSpec } from "../../config/repository";
 import type { CreateProcessedTransactionInput, ProcessedTransaction } from "./transactions-processed.types";
 
 export const TRANSACTIONS_PROCESSED_COLLECTION = "transactions_processed";
 
-export const TRANSACTIONS_PROCESSED_INDEXES = [
-  { field: "id" as const, unique: true },
-  { field: "transactionId" as const, unique: true },
+export const TRANSACTIONS_PROCESSED_INDEXES: IndexSpec<ProcessedTransaction>[] = [
+  { fields: ["id"], unique: true },
+  { fields: ["transactionId"], unique: true },
+  { fields: ["hiveTransactionId"] },
+  { fields: ["type"] },
+  { fields: ["processedAt"] },
 ];
 
 export function createProcessedTransaction(
