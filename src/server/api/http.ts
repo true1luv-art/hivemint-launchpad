@@ -1,3 +1,4 @@
+import { ZodError } from "zod";
 import { logger } from "@/lib/config/logger";
 
 export interface ApiErrorBody {
