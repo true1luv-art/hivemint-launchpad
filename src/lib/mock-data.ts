@@ -288,46 +288,56 @@ export function createSeedData(): SeedData {
   const nfts: NFT[] = [];
   const rand = mulberry32(20260820);
 
+  /**
+   * Every catalogue NFT comes from a real weighted generation run, ranked
+   * against its whole collection pool. Pools are capped so seeding stays fast.
+   */
   collections.forEach((collection, ci) => {
+    const poolSize = Math.min(collection.minted, RANK_POOL_CAP);
+    const inventory = generateInventory({
+      layers: collection.traitLayers,
+      count: poolSize,
+      seedKey: `${collection.id}-inventory`,
+    });
     const perCollection = ci < 4 ? 9 : 7;
+
     for (let i = 0; i < perCollection; i++) {
-      const mintNumber = Math.max(1, Math.floor(rand() * collection.minted) || i + 1);
-      const rarity = pickRarity(collection.rarities, rand);
+      const token = inventory.tokens[Math.floor(rand() * inventory.tokens.length)];
+      if (!token) continue;
       // Ensure @alice owns a healthy slice of the catalogue.
-      const owner =
-        i < 3 && ci < 5 ? "alice" : USERS[Math.floor(rand() * USERS.length)] ?? "bob";
+      const owner = i < 3 && ci < 5 ? "alice" : USERS[Math.floor(rand() * USERS.length)] ?? "bob";
       nfts.push(
         buildNFT({
           collection,
-          mintNumber,
+          mintNumber: token.tokenNumber,
           owner,
-          rarity,
+          token,
+          rankTotal: poolSize,
           createdAt: ago(Math.floor(rand() * 40 * DAY) + HOUR),
           seedKey: `${collection.id}-seed-${i}`,
         }),
       );
     }
-  });
 
-  // Guarantee the showcase NFT from the brief.
-  const ccg = collections[0]!;
-  const showcase = buildNFT({
-    collection: ccg,
-    mintNumber: 1842,
-    owner: "alice",
-    rarity: "Legendary",
-    createdAt: ago(3 * DAY),
-    seedKey: "showcase-1842",
+    // Showcase piece: the rarest token of the flagship collection.
+    if (ci === 0) {
+      const rarest = [...inventory.tokens].sort((a, b) => a.rarityRank - b.rarityRank)[0];
+      if (rarest) {
+        const showcase = buildNFT({
+          collection,
+          mintNumber: 1842,
+          owner: "alice",
+          token: rarest,
+          rankTotal: poolSize,
+          createdAt: ago(3 * DAY),
+          seedKey: "showcase-1842",
+        });
+        showcase.name = `${rarest.rarityClass} Miner #1842`;
+        showcase.estimatedValue = 52;
+        nfts.unshift(showcase);
+      }
+    }
   });
-  showcase.name = "Legendary Miner #1842";
-  showcase.attributes = [
-    { trait: "Rarity", value: "Legendary" },
-    { trait: "Power", value: 95 },
-    { trait: "Type", value: "Mining Rig" },
-    { trait: "Generation", value: 1 },
-  ];
-  showcase.estimatedValue = 52;
-  nfts.unshift(showcase);
 
   // Deduplicate by id (random mint numbers may collide).
   const seen = new Set<string>();
