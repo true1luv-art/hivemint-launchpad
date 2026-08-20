@@ -1,9 +1,14 @@
 import type { Database, DbCollection, Filter, FindOptions, WithId } from "./database";
 import { getDatabase } from "./database";
 
+/**
+ * Index declaration. `fields` is ordered — a compound index `[a, b]` maps to
+ * MongoDB `createIndex({ a: 1, b: 1 })` in Phase 3.
+ */
 export interface IndexSpec<T> {
-  field: keyof T;
+  fields: (keyof T)[];
   unique?: boolean;
+  name?: string;
 }
 
 /**
