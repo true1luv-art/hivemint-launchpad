@@ -1,4 +1,4 @@
-import type { TransactionType } from "../transactions-pending/transactions-pending.types";
+import type { AnyTransactionType } from "../transactions-pending/transactions-pending.types";
 
 export type ProcessedTransactionStatus = "processed" | "failed";
 
@@ -7,7 +7,7 @@ export interface ProcessedTransaction {
   /** matches the pending transaction — unique, the idempotency anchor */
   transactionId: string;
   requestId: string;
-  type: TransactionType;
+  type: AnyTransactionType;
   status: ProcessedTransactionStatus;
   /** mock in Phase 2 (MOCK-HIVE-XXXXXXXX), real Hive trx id in Phase 3 */
   hiveTransactionId: string;
@@ -26,7 +26,7 @@ export interface ProcessedTransaction {
 export interface CreateProcessedTransactionInput {
   transactionId: string;
   requestId: string;
-  type: TransactionType;
+  type: AnyTransactionType;
   status: ProcessedTransactionStatus;
   hiveTransactionId: string;
   blockNumber?: number | undefined;

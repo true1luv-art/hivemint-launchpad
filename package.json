@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "server:smart-contract": "tsx src/server/smart-contract/main.ts"
+    "server:smart-contract": "tsx src/server/smart-contract/main.ts",
+    "test:phase25": "tsx src/server/tests/phase25.test.ts"
   },
   "overrides": {
     "rolldown": "1.2.1"

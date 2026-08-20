@@ -176,14 +176,6 @@ export class SmartContractWorker {
         return this.handleCreateCollection(tx);
       case "MINT_NFT":
         return this.handleMint(tx);
-      case "LIST_NFT":
-        return this.handleList(tx);
-      case "BUY_NFT":
-        return this.handleBuy(tx);
-      case "CANCEL_LISTING":
-        return this.handleCancel(tx);
-      case "TRANSFER_NFT":
-        return this.handleTransfer(tx);
       default:
         throw new PermanentError(`Unsupported transaction type: ${String(tx.type)}`);
     }
@@ -287,45 +279,55 @@ export class SmartContractWorker {
     const total = round(collection.mintPrice + platformFee);
     if (buyer.hiveBalance < total) throw new PermanentError("Insufficient HIVE balance");
 
-    const payment = await this.chain.transfer({
-      from: tx.hiveAccount,
-      to: PLATFORM_ACCOUNT,
-      amount: total,
-      currency: "HIVE",
-      memo: `Mint · ${collection.name}`,
-    });
-    await emitAppEvent(APP_EVENTS.PAYMENT_CONFIRMED, {
-      transactionId: tx.transactionId,
-      hiveTransactionId: payment.hiveTransactionId,
-      from: tx.hiveAccount,
-      to: PLATFORM_ACCOUNT,
-      amount: total,
-      currency: "HIVE",
-      memo: `Mint · ${collection.name}`,
-    });
-
-    // Weighted random selection driven by the collection's rarity configuration.
-    const rarity = pickRarity(collection.rarities, Math.random);
-    const mintNumber = await nftsRepository.nextMintNumber(collection.id);
+    // Reserve the supply slot BEFORE payment or any chain call so concurrent
+    // mints can never overrun maxSupply. Released again if anything fails.
+    const reservation = await nftCollectionsRepository.reserveMint(collection.id);
+    if (!reservation) throw new PermanentError("Collection is sold out");
+    const mintNumber = reservation.mintNumber;
 
     const nft = createNftDocument({
       collection,
       mintNumber,
       owner: tx.hiveAccount,
-      rarity,
+      // Weighted random selection driven by the collection's rarity configuration.
+      rarity: pickRarity(collection.rarities, Math.random),
       mintTransactionId: tx.transactionId,
       seedKey: `${collection.id}-${mintNumber}-${tx.transactionId}`,
     });
 
-    const issue = await this.chain.issueNft({
-      symbol: collection.symbol,
-      to: tx.hiveAccount,
-      tokenId: nft.tokenId,
-      metadataUri: nft.metadataUri,
-    });
+    let issue;
+    try {
+      const payment = await this.chain.transfer({
+        from: tx.hiveAccount,
+        to: PLATFORM_ACCOUNT,
+        amount: total,
+        currency: "HIVE",
+        memo: `Mint · ${collection.name}`,
+      });
+      await emitAppEvent(APP_EVENTS.PAYMENT_CONFIRMED, {
+        transactionId: tx.transactionId,
+        hiveTransactionId: payment.hiveTransactionId,
+        from: tx.hiveAccount,
+        to: PLATFORM_ACCOUNT,
+        amount: total,
+        currency: "HIVE",
+        memo: `Mint · ${collection.name}`,
+      });
 
-    await nftsRepository.insert(nft);
-    await nftCollectionsRepository.incrementMinted(collection.id, total);
+      issue = await this.chain.issueNft({
+        symbol: collection.symbol,
+        to: tx.hiveAccount,
+        tokenId: nft.tokenId,
+        metadataUri: nft.metadataUri,
+      });
+
+      await nftsRepository.insert(nft);
+    } catch (error) {
+      await nftCollectionsRepository.releaseMint(collection.id);
+      throw error;
+    }
+
+    await nftCollectionsRepository.addVolume(collection.id, total);
     const holders = await nftsRepository.countHolders(collection.id);
     await nftCollectionsRepository.patch(collection.id, { holders });
 
@@ -374,241 +376,6 @@ export class SmartContractWorker {
     };
   }
 
-  private async handleList(tx: PendingTransaction): Promise<ProcessOutcome> {
-    const { nftId, price } = tx.payload as { nftId: string; price: number };
-    const nft = await nftsRepository.findById(nftId);
-    if (!nft) throw new PermanentError("NFT not found");
-    if (nft.owner !== tx.hiveAccount) throw new PermanentError("Only the owner can list this NFT");
-    const already = await marketplaceListingsRepository.findActiveByNft(nftId);
-    if (already) throw new PermanentError("NFT is already listed");
-
-    const collection = await nftCollectionsRepository.findById(nft.collectionId);
-    const sell = await this.chain.sellNft({
-      symbol: collection?.symbol ?? nft.collectionName,
-      seller: tx.hiveAccount,
-      tokenId: nft.tokenId,
-      price,
-    });
-
-    const listing = await marketplaceListingsRepository.insert(
-      createListingDocument({
-        nftId: nft.id,
-        collectionId: nft.collectionId,
-        seller: tx.hiveAccount,
-        price,
-        marketTransactionId: sell.hiveTransactionId,
-      }),
-    );
-    await nftsRepository.setStatus(nft.id, "listed");
-
-    if (collection && (collection.floorPrice === 0 || price < collection.floorPrice)) {
-      await nftCollectionsRepository.patch(collection.id, { floorPrice: price });
-    }
-
-    await activityRepository.record({
-      type: "Listed",
-      actor: tx.hiveAccount,
-      nftId: nft.id,
-      collectionId: nft.collectionId,
-      label: `@${tx.hiveAccount} listed ${nft.name}`,
-      amount: price,
-      transactionId: tx.transactionId,
-      hiveTransactionId: sell.hiveTransactionId,
-    });
-
-    await emitAppEvent(APP_EVENTS.NFT_LISTED, {
-      transactionId: tx.transactionId,
-      hiveTransactionId: sell.hiveTransactionId,
-      listingId: listing.id,
-      nftId: nft.id,
-      collectionId: nft.collectionId,
-      seller: tx.hiveAccount,
-      price,
-    });
-
-    return {
-      hiveTransactionId: sell.hiveTransactionId,
-      blockNumber: sell.blockNumber,
-      collectionId: nft.collectionId,
-      nftId: nft.id,
-      result: { listingId: listing.id, price, marketplaceFeeRate: MARKETPLACE_FEE_RATE },
-    };
-  }
-
-  private async handleCancel(tx: PendingTransaction): Promise<ProcessOutcome> {
-    const { listingId } = tx.payload as { listingId: string };
-    const listing = await marketplaceListingsRepository.findById(listingId);
-    if (!listing) throw new PermanentError("Listing not found");
-    if (listing.status !== "active") throw new PermanentError("Listing is no longer active");
-    if (listing.seller !== tx.hiveAccount) throw new PermanentError("Only the seller can cancel this listing");
-
-    const nft = await nftsRepository.findById(listing.nftId);
-    const collection = await nftCollectionsRepository.findById(listing.collectionId);
-    const cancel = await this.chain.cancelSell({
-      symbol: collection?.symbol ?? "UNKNOWN",
-      seller: listing.seller,
-      tokenId: nft?.tokenId ?? 0,
-      price: listing.price,
-    });
-
-    await marketplaceListingsRepository.markCancelled(listing.id);
-    if (nft) await nftsRepository.setStatus(nft.id, "owned");
-
-    await activityRepository.record({
-      type: "Delisted",
-      actor: listing.seller,
-      nftId: listing.nftId,
-      collectionId: listing.collectionId,
-      label: `@${listing.seller} cancelled listing for ${nft?.name ?? "NFT"}`,
-      amount: listing.price,
-      transactionId: tx.transactionId,
-      hiveTransactionId: cancel.hiveTransactionId,
-    });
-
-    await emitAppEvent(APP_EVENTS.LISTING_CANCELLED, {
-      transactionId: tx.transactionId,
-      hiveTransactionId: cancel.hiveTransactionId,
-      listingId: listing.id,
-      nftId: listing.nftId,
-      seller: listing.seller,
-    });
-
-    return {
-      hiveTransactionId: cancel.hiveTransactionId,
-      blockNumber: cancel.blockNumber,
-      collectionId: listing.collectionId,
-      nftId: listing.nftId,
-      result: { listingId: listing.id },
-    };
-  }
-
-  private async handleBuy(tx: PendingTransaction): Promise<ProcessOutcome> {
-    const { listingId } = tx.payload as { listingId: string };
-    const listing = await marketplaceListingsRepository.findById(listingId);
-    if (!listing) throw new PermanentError("Listing not found");
-    if (listing.status !== "active") throw new PermanentError("Listing is no longer available");
-    if (listing.seller === tx.hiveAccount) throw new PermanentError("You cannot buy your own listing");
-
-    const nft = await nftsRepository.findById(listing.nftId);
-    if (!nft) throw new PermanentError("NFT not found");
-
-    const buyer = await usersRepository.ensure({ username: tx.hiveAccount });
-    const fee = round(listing.price * MARKETPLACE_FEE_RATE);
-    const total = round(listing.price + fee);
-    if (buyer.hiveBalance < total) throw new PermanentError("Insufficient HIVE balance");
-
-    const collection = await nftCollectionsRepository.findById(listing.collectionId);
-    const purchase = await this.chain.buyNft({
-      symbol: collection?.symbol ?? nft.collectionName,
-      seller: listing.seller,
-      buyer: tx.hiveAccount,
-      tokenId: nft.tokenId,
-      price: listing.price,
-    });
-
-    await emitAppEvent(APP_EVENTS.PAYMENT_CONFIRMED, {
-      transactionId: tx.transactionId,
-      hiveTransactionId: purchase.hiveTransactionId,
-      from: tx.hiveAccount,
-      to: MARKET_ACCOUNT,
-      amount: total,
-      currency: "HIVE",
-      memo: `Marketplace purchase · ${nft.name}`,
-    });
-
-    await usersRepository.adjustBalance(tx.hiveAccount, -total);
-    await usersRepository.ensure({ username: listing.seller });
-    await usersRepository.adjustBalance(listing.seller, round(listing.price - fee));
-
-    await nftsRepository.transferOwnership(nft.id, tx.hiveAccount, round(listing.price * 1.05));
-    await marketplaceListingsRepository.markSold(listing.id, tx.hiveAccount);
-    await nftCollectionsRepository.registerSale(listing.collectionId, listing.price);
-    const holders = await nftsRepository.countHolders(listing.collectionId);
-    await nftCollectionsRepository.patch(listing.collectionId, { holders });
-
-    await activityRepository.record({
-      type: "Sold",
-      actor: tx.hiveAccount,
-      target: listing.seller,
-      nftId: nft.id,
-      collectionId: listing.collectionId,
-      label: `@${tx.hiveAccount} purchased ${nft.name}`,
-      amount: listing.price,
-      transactionId: tx.transactionId,
-      hiveTransactionId: purchase.hiveTransactionId,
-    });
-
-    await emitAppEvent(APP_EVENTS.NFT_SOLD, {
-      transactionId: tx.transactionId,
-      hiveTransactionId: purchase.hiveTransactionId,
-      listingId: listing.id,
-      nftId: nft.id,
-      collectionId: listing.collectionId,
-      seller: listing.seller,
-      buyer: tx.hiveAccount,
-      price: listing.price,
-      marketplaceFee: fee,
-    });
-
-    return {
-      hiveTransactionId: purchase.hiveTransactionId,
-      blockNumber: purchase.blockNumber,
-      collectionId: listing.collectionId,
-      nftId: nft.id,
-      result: { listingId: listing.id, price: listing.price, fee, total, seller: listing.seller },
-    };
-  }
-
-  private async handleTransfer(tx: PendingTransaction): Promise<ProcessOutcome> {
-    const { nftId, to } = tx.payload as { nftId: string; to: string };
-    const nft = await nftsRepository.findById(nftId);
-    if (!nft) throw new PermanentError("NFT not found");
-    if (nft.owner !== tx.hiveAccount) throw new PermanentError("Only the owner can transfer this NFT");
-
-    const active = await marketplaceListingsRepository.findActiveByNft(nftId);
-    if (active) await marketplaceListingsRepository.markCancelled(active.id);
-
-    const collection = await nftCollectionsRepository.findById(nft.collectionId);
-    const transfer = await this.chain.transferNft({
-      symbol: collection?.symbol ?? nft.collectionName,
-      from: nft.owner,
-      to,
-      tokenId: nft.tokenId,
-    });
-
-    await usersRepository.ensure({ username: to });
-    await nftsRepository.transferOwnership(nft.id, to);
-    const holders = await nftsRepository.countHolders(nft.collectionId);
-    await nftCollectionsRepository.patch(nft.collectionId, { holders });
-
-    await activityRepository.record({
-      type: "Transferred",
-      actor: nft.owner,
-      target: to,
-      nftId: nft.id,
-      collectionId: nft.collectionId,
-      label: `@${nft.owner} transferred ${nft.name} to @${to}`,
-      transactionId: tx.transactionId,
-      hiveTransactionId: transfer.hiveTransactionId,
-    });
-
-    await emitAppEvent(APP_EVENTS.NFT_TRANSFERRED, {
-      transactionId: tx.transactionId,
-      hiveTransactionId: transfer.hiveTransactionId,
-      nftId: nft.id,
-      collectionId: nft.collectionId,
-      from: nft.owner,
-      to,
-    });
-
-    return {
-      hiveTransactionId: transfer.hiveTransactionId,
-      blockNumber: transfer.blockNumber,
-      collectionId: nft.collectionId,
-      nftId: nft.id,
-      result: { from: nft.owner, to },
-    };
-  }
 }
 
 /** Business-rule failure — never retried. */

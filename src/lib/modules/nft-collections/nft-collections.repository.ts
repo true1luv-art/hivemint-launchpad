@@ -19,6 +19,39 @@ class NftCollectionsRepository extends BaseRepository<CollectionDocument> {
     return this.updateById(id, { ...patch, updatedAt: nowIso() });
   }
 
+  /**
+   * Reserves one mint slot BEFORE any payment or chain call.
+   * Returns null when the collection is sold out, which makes supply overruns
+   * impossible even if several mints are processed back to back.
+   */
+  async reserveMint(id: string): Promise<{ mintNumber: number; collection: CollectionDocument } | null> {
+    const doc = await this.findById(id);
+    if (!doc) return null;
+    if (doc.minted >= doc.maxSupply) return null;
+    const minted = doc.minted + 1;
+    const updated = await this.patch(id, {
+      minted,
+      status: minted >= doc.maxSupply ? "sold_out" : doc.status,
+    });
+    if (!updated) return null;
+    return { mintNumber: minted, collection: updated };
+  }
+
+  /** Rolls a reservation back when the mint fails after reserving. */
+  async releaseMint(id: string): Promise<CollectionDocument | null> {
+    const doc = await this.findById(id);
+    if (!doc || doc.minted <= 0) return doc;
+    const minted = doc.minted - 1;
+    return this.patch(id, { minted, status: minted < doc.maxSupply ? "active" : doc.status });
+  }
+
+  /** Records mint revenue for an already reserved slot. */
+  async addVolume(id: string, amount: number): Promise<CollectionDocument | null> {
+    const doc = await this.findById(id);
+    if (!doc) return null;
+    return this.patch(id, { volume: Number((doc.volume + amount).toFixed(3)) });
+  }
+
   /** Reserves the next mint number atomically-ish and returns the updated doc. */
   async incrementMinted(id: string, amount: number): Promise<CollectionDocument | null> {
     const doc = await this.findById(id);

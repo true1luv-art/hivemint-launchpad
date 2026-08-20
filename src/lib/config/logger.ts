@@ -11,6 +11,8 @@ export type LogScope =
   | "BLOCKCHAIN:HIVE"
   | "EVENT"
   | "SEED"
+  | "KEYCHAIN"
+  | "MARKETPLACE"
   | "AUTH";
 
 function should(level: keyof typeof ORDER) {
