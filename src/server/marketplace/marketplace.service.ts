@@ -168,7 +168,7 @@ export class MarketplaceService {
         collectionId: nft.collectionId,
         seller: actor.hiveAccount,
         price,
-        transactionId,
+        marketTransactionId: transactionId,
       }),
     );
     await nftsRepository.setStatus(nft.id, "listed");
