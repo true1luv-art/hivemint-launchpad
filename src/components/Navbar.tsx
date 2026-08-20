@@ -8,7 +8,6 @@ import { cn } from "@/lib/utils";
 const links = [
   { to: "/", label: "Dashboard", exact: true },
   { to: "/collections", label: "Collections" },
-  { to: "/marketplace", label: "Marketplace" },
 ] as const;
 
 export function Navbar() {

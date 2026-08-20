@@ -11,7 +11,6 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ActivityRouteImport } from './routes/activity'
-import { Route as MarketplaceRouteImport } from './routes/marketplace'
 import { Route as CollectionsIndexRouteImport } from './routes/collections.index'
 import { Route as CollectionsIdRouteImport } from './routes/collections.$id'
 import { Route as CreatorIndexRouteImport } from './routes/creator.index'
@@ -29,11 +28,6 @@ const IndexRoute = IndexRouteImport.update({
 const ActivityRoute = ActivityRouteImport.update({
   id: '/activity',
   path: '/activity',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const MarketplaceRoute = MarketplaceRouteImport.update({
-  id: '/marketplace',
-  path: '/marketplace',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CollectionsIndexRoute = CollectionsIndexRouteImport.update({
@@ -80,7 +74,6 @@ const CreatorCollectionsNewRoute = CreatorCollectionsNewRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/activity': typeof ActivityRoute
-  '/marketplace': typeof MarketplaceRoute
   '/collections/$id': typeof CollectionsIdRoute
   '/mint/$collectionId': typeof MintCollectionIdRoute
   '/nfts/$id': typeof NftsIdRoute
@@ -93,7 +86,6 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/activity': typeof ActivityRoute
-  '/marketplace': typeof MarketplaceRoute
   '/collections/$id': typeof CollectionsIdRoute
   '/mint/$collectionId': typeof MintCollectionIdRoute
   '/nfts/$id': typeof NftsIdRoute
@@ -107,7 +99,6 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/activity': typeof ActivityRoute
-  '/marketplace': typeof MarketplaceRoute
   '/collections/$id': typeof CollectionsIdRoute
   '/mint/$collectionId': typeof MintCollectionIdRoute
   '/nfts/$id': typeof NftsIdRoute
@@ -122,7 +113,6 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/activity'
-    | '/marketplace'
     | '/collections/$id'
     | '/mint/$collectionId'
     | '/nfts/$id'
@@ -135,7 +125,6 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/activity'
-    | '/marketplace'
     | '/collections/$id'
     | '/mint/$collectionId'
     | '/nfts/$id'
@@ -148,7 +137,6 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/activity'
-    | '/marketplace'
     | '/collections/$id'
     | '/mint/$collectionId'
     | '/nfts/$id'
@@ -162,7 +150,6 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ActivityRoute: typeof ActivityRoute
-  MarketplaceRoute: typeof MarketplaceRoute
   CollectionsIdRoute: typeof CollectionsIdRoute
   MintCollectionIdRoute: typeof MintCollectionIdRoute
   NftsIdRoute: typeof NftsIdRoute
@@ -187,13 +174,6 @@ declare module '@tanstack/react-router' {
       path: '/activity'
       fullPath: '/activity'
       preLoaderRoute: typeof ActivityRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/marketplace': {
-      id: '/marketplace'
-      path: '/marketplace'
-      fullPath: '/marketplace'
-      preLoaderRoute: typeof MarketplaceRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/collections/': {
@@ -258,7 +238,6 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ActivityRoute: ActivityRoute,
-  MarketplaceRoute: MarketplaceRoute,
   CollectionsIdRoute: CollectionsIdRoute,
   MintCollectionIdRoute: MintCollectionIdRoute,
   NftsIdRoute: NftsIdRoute,
