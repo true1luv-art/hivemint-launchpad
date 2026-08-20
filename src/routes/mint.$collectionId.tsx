@@ -1,9 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/mint/$collectionId")({
-  component: Page,
+  beforeLoad: ({ params }) => {
+    throw redirect({ to: "/collections/$id", params: { id: params.collectionId } });
+  },
 });
-
-function Page() {
-  return null;
-}
