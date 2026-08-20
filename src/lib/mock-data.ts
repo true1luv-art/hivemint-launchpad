@@ -1,14 +1,24 @@
 import { generateArtwork, hashString, mulberry32 } from "./art";
+import { generateInventory } from "./traits/generator";
+import { buildCollectionTraitLayers } from "./traits/presets";
+import type { GeneratedToken, GeneratedTrait } from "./traits/types";
 import type {
   Activity,
   Collection,
   Listing,
   NFT,
+  NFTAttribute,
   Rarity,
   RarityConfig,
   Transaction,
   User,
 } from "./types";
+
+/**
+ * Ranking pool size cap. Rarity rank is computed across the whole collection,
+ * but seeding 5,000 tokens per collection is wasteful for a prototype.
+ */
+export const RANK_POOL_CAP = 600;
 
 export const CURRENT_USER: User = {
   username: "alice",
