@@ -10,6 +10,8 @@ import { nowIso } from "@/lib/config/repository";
 import { createSeedData, CURRENT_USER, USERS } from "@/lib/mock-data";
 import { activityRepository } from "@/lib/modules/activity/activity.repository";
 import { nftCollectionsRepository } from "@/lib/modules/nft-collections/nft-collections.repository";
+import { mockCid } from "@/lib/storage/mock-ipfs";
+import { nftAssetsRepository } from "@/lib/modules/nft-assets/nft-assets.repository";
 import { nftsRepository } from "@/lib/modules/nfts/nfts.repository";
 import { marketplaceListingsRepository } from "@/lib/modules/marketplace-listings/marketplace-listings.repository";
 import { transactionsPendingRepository } from "@/lib/modules/transactions-pending/transactions-pending.repository";
@@ -40,6 +42,7 @@ export async function seedDatabase(options: { force?: boolean } = {}): Promise<S
       usersRepository.clear(),
       transactionsPendingRepository.clear(),
       transactionsProcessedRepository.clear(),
+      nftAssetsRepository.clear(),
     ]);
   }
 
@@ -62,6 +65,14 @@ export async function seedDatabase(options: { force?: boolean } = {}): Promise<S
     rarities: c.rarities,
     metadataBaseUri: c.metadataBaseUri,
     status: c.minted >= c.maxSupply ? "sold_out" : "active",
+    creationState: "ACTIVE",
+    // Seeded collections behave as if their assets were already pinned.
+    collectionImageUri: `ipfs://${mockCid(`seed-image-${c.id}`)}`,
+    collectionMetadataUri: `ipfs://${mockCid(`seed-collection-metadata-${c.id}`)}`,
+    assetRootUri: `ipfs://${mockCid(`seed-assets-${c.id}`)}`,
+    metadataRootUri: `ipfs://${mockCid(`seed-metadata-${c.id}`)}`,
+    assetCount: 0,
+    reusableAssets: true,
     floorPrice: c.floorPrice,
     volume: c.volume,
     holders: c.holders,
