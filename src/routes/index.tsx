@@ -93,8 +93,8 @@ function Dashboard() {
       <section className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="font-display text-xl font-semibold">Recent Mints</h2>
-          <Link to="/marketplace" className="text-sm text-muted-foreground hover:text-foreground">
-            Marketplace
+          <Link to="/collections" className="text-sm text-muted-foreground hover:text-foreground">
+            Browse collections
           </Link>
         </div>
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">

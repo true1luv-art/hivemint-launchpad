@@ -13,6 +13,7 @@ import { RARITIES } from "@/lib/types";
 import { useAppStore } from "@/store/useAppStore";
 
 const RARITY_FILTERS = ["All", ...RARITIES] as const;
+const STATUS_FILTERS = ["All items", "For sale", "Not listed"] as const;
 
 export const Route = createFileRoute("/collections/$id")({
   head: () => ({
@@ -33,14 +34,27 @@ function CollectionDetail() {
   const listings = useAppStore((s) => s.listings);
   const activities = useAppStore((s) => s.activities);
   const [rarity, setRarity] = useState<(typeof RARITY_FILTERS)[number]>("All");
+  const [status, setStatus] = useState<(typeof STATUS_FILTERS)[number]>("All items");
   const [mintOpen, setMintOpen] = useState(false);
 
   const items = useMemo(
     () =>
       nfts
-        .filter((n) => n.collectionId === id && (rarity === "All" || n.rarity === rarity))
+        .filter((n) => {
+          if (n.collectionId !== id) return false;
+          if (rarity !== "All" && n.rarity !== rarity) return false;
+          const listed = listings.some((l) => l.nftId === n.id);
+          if (status === "For sale" && !listed) return false;
+          if (status === "Not listed" && listed) return false;
+          return true;
+        })
         .sort((a, b) => a.mintNumber - b.mintNumber),
-    [nfts, id, rarity],
+    [nfts, id, rarity, status, listings],
+  );
+
+  const forSaleCount = useMemo(
+    () => nfts.filter((n) => n.collectionId === id && listings.some((l) => l.nftId === n.id)).length,
+    [nfts, listings, id],
   );
 
   const collectionActivity = useMemo(
@@ -79,8 +93,14 @@ function CollectionDetail() {
 
       <section className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="font-display text-xl font-semibold">Minted items ({items.length})</h2>
-          <FilterPills options={RARITY_FILTERS} value={rarity} onChange={setRarity} />
+          <div>
+            <h2 className="font-display text-xl font-semibold">Items ({items.length})</h2>
+            <p className="text-xs text-muted-foreground">{forSaleCount} listed for sale</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <FilterPills options={STATUS_FILTERS} value={status} onChange={setStatus} />
+            <FilterPills options={RARITY_FILTERS} value={rarity} onChange={setRarity} />
+          </div>
         </div>
         {items.length ? (
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
