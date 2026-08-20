@@ -182,16 +182,7 @@ const COLLECTION_SEEDS: CollectionSeed[] = [
 const ADJECTIVES = ["Legendary", "Ancient", "Neon", "Prime", "Shadow", "Golden", "Frozen", "Solar"];
 const TYPES = ["Mining Rig", "Companion", "Vehicle", "Artifact", "Guardian", "Relic"];
 
-export function pickRarity(rarities: RarityConfig[], rand: () => number): Rarity {
-  const total = rarities.reduce((s, r) => s + r.weight, 0) || 100;
-  let roll = rand() * total;
-  for (const r of rarities) {
-    roll -= r.weight;
-    if (roll <= 0) return r.rarity;
-  }
-  return rarities[0]?.rarity ?? "Common";
-}
-
+/** Value multiplier derived from the token's rank percentile, not from an input. */
 export function rarityMultiplier(rarity: Rarity): number {
   switch (rarity) {
     case "Legendary":
@@ -205,41 +196,57 @@ export function rarityMultiplier(rarity: Rarity): number {
   }
 }
 
+/** Generated traits -> metadata attributes. Attributes always mirror traits. */
+export function traitsToAttributes(traits: GeneratedTrait[]): NFTAttribute[] {
+  return traits.map((trait) => ({ trait: trait.layerName, value: trait.traitValueName }));
+}
+
+/**
+ * Builds an NFT from an ALREADY GENERATED token. Traits, score, rank and class
+ * are inputs here — this function never rolls rarity.
+ */
 export function buildNFT(params: {
   collection: Collection;
   mintNumber: number;
   owner: string;
   createdAt: string;
-  rarity: Rarity;
+  token: GeneratedToken;
+  rankTotal: number;
   seedKey: string;
 }): NFT {
-  const { collection, mintNumber, owner, createdAt, rarity, seedKey } = params;
+  const { collection, mintNumber, owner, createdAt, token, rankTotal, seedKey } = params;
   const rand = mulberry32(hashString(seedKey));
   const noun = collection.name.split(" ")[0] ?? "Token";
   const adj = ADJECTIVES[Math.floor(rand() * ADJECTIVES.length)] ?? "Prime";
   const tokenId = mintNumber;
-  const power = 20 + Math.floor(rand() * 60) + Math.round(rarityMultiplier(rarity) * 3);
+  const rarity = token.rarityClass;
   const value = Number(
     (collection.mintPrice * rarityMultiplier(rarity) * (0.85 + rand() * 0.5)).toFixed(2),
   );
+  const traitSummary = token.traits
+    .filter((t) => t.traitValueName !== "None")
+    .slice(0, 3)
+    .map((t) => t.traitValueName)
+    .join(", ");
+
   return {
     id: `${collection.id}-${tokenId}`,
     collectionId: collection.id,
     collectionName: collection.name,
     tokenId,
     name: `${adj} ${noun} #${tokenId}`,
-    description: `A ${rarity.toLowerCase()} piece from ${collection.name}. Minted through the HiveMint launchpad and secured as a Hive Engine NFT.`,
+    description: `${traitSummary || "A unique combination"} — rank #${token.rarityRank} of ${rankTotal} in ${collection.name}. Minted through the HiveMint launchpad and secured as a Hive Engine NFT.`,
     image: generateArtwork(`${collection.id}-${tokenId}`, rarity),
     rarity,
+    traits: token.traits,
+    rarityScore: token.rarityScore,
+    rarityRank: token.rarityRank,
+    rarityRankTotal: rankTotal,
+    rarityClass: token.rarityClass,
     mintNumber,
     maxSupply: collection.maxSupply,
     owner,
-    attributes: [
-      { trait: "Rarity", value: rarity },
-      { trait: "Power", value: Math.min(99, power) },
-      { trait: "Type", value: TYPES[Math.floor(rand() * TYPES.length)] ?? "Artifact" },
-      { trait: "Generation", value: 1 },
-    ],
+    attributes: traitsToAttributes(token.traits),
     metadataUri: `${collection.metadataBaseUri}${tokenId}.json`,
     estimatedValue: value,
     createdAt,
