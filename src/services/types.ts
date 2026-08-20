@@ -39,5 +39,9 @@ export interface MarketplaceService {
   quoteMint(collection: Collection): Promise<{ mintPrice: number; platformFee: number; total: number }>;
   quoteListing(price: number): Promise<{ feeRate: number; fee: number; receive: number }>;
   quotePurchase(price: number): Promise<{ price: number; fee: number; total: number }>;
-  rollRarity(rarities: RarityConfig[]): Promise<Rarity>;
+  /**
+   * Rolls a full weighted trait combination. Rarity is derived from the
+   * result — it is never an input.
+   */
+  generateToken(collection: Collection, tokenNumber: number): Promise<GeneratedToken>;
 }

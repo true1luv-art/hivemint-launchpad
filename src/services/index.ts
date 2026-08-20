@@ -1,6 +1,7 @@
 import { mockTxId } from "@/lib/art";
-import { pickRarity } from "@/lib/mock-data";
-import type { Collection, NFT, Rarity, RarityConfig } from "@/lib/types";
+import { generateInventory } from "@/lib/traits/generator";
+import type { GeneratedToken } from "@/lib/traits/types";
+import type { Collection, NFT } from "@/lib/types";
 import type { DatabaseService, HiveService, MarketplaceService } from "./types";
 
 export const PLATFORM_FEE_RATE = 0.05;
@@ -63,8 +64,20 @@ export class MockMarketplaceService implements MarketplaceService {
     const fee = Number((price * MARKETPLACE_FEE_RATE).toFixed(2));
     return { price, fee, total: Number((price + fee).toFixed(2)) };
   }
-  async rollRarity(rarities: RarityConfig[]): Promise<Rarity> {
-    return pickRarity(rarities, Math.random);
+  /**
+   * Generates one token's traits with the collection's own weights, then ranks
+   * it against a freshly generated sample of the collection so the derived
+   * rarity class is meaningful.
+   */
+  async generateToken(collection: Collection, tokenNumber: number): Promise<GeneratedToken> {
+    const poolSize = Math.max(1, Math.min(collection.maxSupply, RANK_POOL_CAP));
+    const inventory = generateInventory({
+      layers: collection.traitLayers,
+      count: poolSize,
+      seedKey: `${collection.id}-mint-${tokenNumber}-${Date.now()}`,
+    });
+    const token = inventory.tokens[0]!;
+    return { ...token, tokenNumber };
   }
 }
 
