@@ -13,6 +13,7 @@ import { RARITIES } from "@/lib/types";
 import { useAppStore } from "@/store/useAppStore";
 
 const RARITY_FILTERS = ["All", ...RARITIES] as const;
+const STATUS_FILTERS = ["All items", "For sale", "Not listed"] as const;
 
 export const Route = createFileRoute("/collections/$id")({
   head: () => ({
