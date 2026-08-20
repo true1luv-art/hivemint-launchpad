@@ -9,7 +9,7 @@ const hiveAccount = z
 const requestId = z.string().trim().min(8).max(120);
 
 export const raritySchema = z.object({
-  rarity: z.enum(["Common", "Uncommon", "Rare", "Epic", "Legendary"]),
+  rarity: z.enum(["Common", "Rare", "Epic", "Legendary"]),
   weight: z.number().min(0).max(100),
 });
 
