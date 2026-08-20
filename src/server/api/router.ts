@@ -54,6 +54,18 @@ async function ensureReady(): Promise<void> {
 /** Dev actor used until Hive Keychain auth lands. */
 const ACTOR = config.devUser;
 
+/** Reads a JSON object body, returning {} when the request has no body. */
+async function readBody(request?: Request): Promise<Record<string, unknown>> {
+  if (!request) return {};
+  const text = await request.text();
+  if (!text.trim()) return {};
+  try {
+    return JSON.parse(text) as Record<string, unknown>;
+  } catch {
+    throw badRequest("Request body must be valid JSON");
+  }
+}
+
 function genRequestId(): string {
   return `req_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 }
