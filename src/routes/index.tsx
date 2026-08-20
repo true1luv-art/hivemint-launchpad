@@ -1,13 +1,13 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Boxes, Coins, Layers, Sparkles, Tag, TrendingUp } from "lucide-react";
 
-import { ActivityFeed } from "@/components/ActivityFeed";
 import { CollectionCard } from "@/components/CollectionCard";
 import { NFTCard } from "@/components/NFTCard";
 import { StatCard } from "@/components/StatCard";
 import { Button } from "@/components/ui/button";
 import { hive, num } from "@/lib/format";
 import { useAppStore } from "@/store/useAppStore";
+
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -32,7 +32,6 @@ function Dashboard() {
   const collections = useAppStore((s) => s.collections);
   const nfts = useAppStore((s) => s.nfts);
   const listings = useAppStore((s) => s.listings);
-  const activities = useAppStore((s) => s.activities);
 
   const minted = collections.reduce((s, c) => s + c.minted, 0);
   const volume = collections.reduce((s, c) => s + c.volume, 0);
@@ -40,6 +39,7 @@ function Dashboard() {
   const recentMints = [...nfts]
     .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))
     .slice(0, 4);
+
 
   return (
     <div className="space-y-10">
@@ -72,34 +72,23 @@ function Dashboard() {
         <StatCard label="Active Listings" value={num(1_284 - 24 + listings.length)} icon={Tag} hint="Open marketplace orders" />
       </section>
 
-      <section className="grid gap-6 lg:grid-cols-[1fr_380px]">
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="font-display text-xl font-semibold">
-              <TrendingUp className="mr-2 inline size-5 text-primary" />
-              Trending Collections
-            </h2>
-            <Link to="/collections" className="text-sm text-muted-foreground hover:text-foreground">
-              View all
-            </Link>
-          </div>
-          <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-            {trending.map((c) => (
-              <CollectionCard key={c.id} collection={c} />
-            ))}
-          </div>
+      <section className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="font-display text-xl font-semibold">
+            <TrendingUp className="mr-2 inline size-5 text-primary" />
+            Trending Collections
+          </h2>
+          <Link to="/collections" className="text-sm text-muted-foreground hover:text-foreground">
+            View all
+          </Link>
         </div>
-
-        <div className="surface-card p-5">
-          <div className="flex items-center justify-between">
-            <h2 className="font-display text-lg font-semibold">Recent Activity</h2>
-            <Link to="/activity" className="text-sm text-muted-foreground hover:text-foreground">
-              All
-            </Link>
-          </div>
-          <ActivityFeed activities={activities} limit={7} className="mt-2" />
+        <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+          {trending.map((c) => (
+            <CollectionCard key={c.id} collection={c} />
+          ))}
         </div>
       </section>
+
 
       <section className="space-y-4">
         <div className="flex items-center justify-between">
