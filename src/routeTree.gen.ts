@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ActivityRouteImport } from './routes/activity'
+import { Route as ApiSplatRouteImport } from './routes/api/$'
 import { Route as CollectionsIndexRouteImport } from './routes/collections.index'
 import { Route as CollectionsIdRouteImport } from './routes/collections.$id'
 import { Route as CreatorIndexRouteImport } from './routes/creator.index'
@@ -28,6 +29,11 @@ const IndexRoute = IndexRouteImport.update({
 const ActivityRoute = ActivityRouteImport.update({
   id: '/activity',
   path: '/activity',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSplatRoute = ApiSplatRouteImport.update({
+  id: '/api/$',
+  path: '/api/$',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CollectionsIndexRoute = CollectionsIndexRouteImport.update({
@@ -74,6 +80,7 @@ const CreatorCollectionsNewRoute = CreatorCollectionsNewRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/activity': typeof ActivityRoute
+  '/api/$': typeof ApiSplatRoute
   '/collections/$id': typeof CollectionsIdRoute
   '/mint/$collectionId': typeof MintCollectionIdRoute
   '/nfts/$id': typeof NftsIdRoute
@@ -86,6 +93,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/activity': typeof ActivityRoute
+  '/api/$': typeof ApiSplatRoute
   '/collections/$id': typeof CollectionsIdRoute
   '/mint/$collectionId': typeof MintCollectionIdRoute
   '/nfts/$id': typeof NftsIdRoute
@@ -99,6 +107,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/activity': typeof ActivityRoute
+  '/api/$': typeof ApiSplatRoute
   '/collections/$id': typeof CollectionsIdRoute
   '/mint/$collectionId': typeof MintCollectionIdRoute
   '/nfts/$id': typeof NftsIdRoute
@@ -113,6 +122,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/activity'
+    | '/api/$'
     | '/collections/$id'
     | '/mint/$collectionId'
     | '/nfts/$id'
@@ -125,6 +135,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/activity'
+    | '/api/$'
     | '/collections/$id'
     | '/mint/$collectionId'
     | '/nfts/$id'
@@ -137,6 +148,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/activity'
+    | '/api/$'
     | '/collections/$id'
     | '/mint/$collectionId'
     | '/nfts/$id'
@@ -150,6 +162,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ActivityRoute: typeof ActivityRoute
+  ApiSplatRoute: typeof ApiSplatRoute
   CollectionsIdRoute: typeof CollectionsIdRoute
   MintCollectionIdRoute: typeof MintCollectionIdRoute
   NftsIdRoute: typeof NftsIdRoute
@@ -174,6 +187,13 @@ declare module '@tanstack/react-router' {
       path: '/activity'
       fullPath: '/activity'
       preLoaderRoute: typeof ActivityRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/$': {
+      id: '/api/$'
+      path: '/api/$'
+      fullPath: '/api/$'
+      preLoaderRoute: typeof ApiSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/collections/': {
@@ -238,6 +258,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ActivityRoute: ActivityRoute,
+  ApiSplatRoute: ApiSplatRoute,
   CollectionsIdRoute: CollectionsIdRoute,
   MintCollectionIdRoute: MintCollectionIdRoute,
   NftsIdRoute: NftsIdRoute,
