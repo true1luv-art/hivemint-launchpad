@@ -71,9 +71,9 @@ const toInput = async (file: File): Promise<StorageFileInput> => ({
 });
 
 export class AssetValidationError extends Error {
-  readonly name = "StorageValidationError";
   constructor(readonly issues: ValidationIssue[]) {
     super(issues.map((i) => `${i.filename}: ${i.message}`).join("; "));
+    this.name = "StorageValidationError";
   }
 }
 
