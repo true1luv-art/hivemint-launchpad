@@ -8,7 +8,7 @@
  *
  * Constraints: no React, no Zustand, no browser APIs.
  */
-import { config } from "@/lib/config/config";
+import { collectionCreationCost, config } from "@/lib/config/config";
 import { logger } from "@/lib/config/logger";
 import { COLLECTION_CREATION_FEE, MARKETPLACE_FEE_RATE, MARKET_ACCOUNT, PLATFORM_ACCOUNT } from "@/features/types/constants";
 import { APP_EVENTS, emitAppEvent } from "@/features/events/action";
@@ -16,6 +16,7 @@ import { pickRarity } from "@/lib/mock-data";
 import type { RarityConfig } from "@/lib/types";
 import { activityRepository } from "@/lib/modules/activity/activity.repository";
 import { createCollectionDocument } from "@/lib/modules/nft-collections/nft-collections.model";
+import { nftAssetsRepository } from "@/lib/modules/nft-assets/nft-assets.repository";
 import { nftCollectionsRepository } from "@/lib/modules/nft-collections/nft-collections.repository";
 import { createNftDocument } from "@/lib/modules/nfts/nfts.model";
 import { nftsRepository } from "@/lib/modules/nfts/nfts.repository";
@@ -183,6 +184,7 @@ export class SmartContractWorker {
 
   private async handleCreateCollection(tx: PendingTransaction): Promise<ProcessOutcome> {
     const payload = tx.payload as {
+      collectionId?: string;
       name: string;
       symbol: string;
       description: string;
@@ -193,17 +195,46 @@ export class SmartContractWorker {
       platformFee: number;
       rarities: RarityConfig[];
       metadataBaseUri?: string;
+      collectionImageUri?: string;
+      collectionMetadataUri?: string;
+      assetRootUri?: string;
+      metadataRootUri?: string;
+      assetCount?: number;
+      reusableAssets?: boolean;
     };
 
+    // Rule 16: never deploy a collection whose assets are not pinned.
+    if (payload.collectionId) {
+      for (const [label, uri] of [
+        ["collection image", payload.collectionImageUri],
+        ["collection metadata", payload.collectionMetadataUri],
+        ["asset root", payload.assetRootUri],
+        ["metadata root", payload.metadataRootUri],
+      ] as const) {
+        if (!uri) throw new PermanentError(`Cannot deploy: ${label} is not stored yet`);
+      }
+    }
+
+    const fee = collectionCreationCost(payload.maxSupply);
     const creator = await usersRepository.ensure({ username: tx.hiveAccount });
-    if (creator.hiveBalance < COLLECTION_CREATION_FEE) {
+    if (creator.hiveBalance < fee) {
+      if (payload.collectionId) {
+        await nftCollectionsRepository.patch(payload.collectionId, {
+          creationState: "FAILED",
+          creationError: "Insufficient HIVE balance for the collection deployment fee",
+        });
+      }
       throw new PermanentError("Insufficient HIVE balance for the collection deployment fee");
+    }
+
+    if (payload.collectionId) {
+      await nftCollectionsRepository.patch(payload.collectionId, { creationState: "PROCESSING" });
     }
 
     const payment = await this.chain.transfer({
       from: tx.hiveAccount,
       to: PLATFORM_ACCOUNT,
-      amount: COLLECTION_CREATION_FEE,
+      amount: fee,
       currency: "HIVE",
       memo: `Collection deployment · ${payload.name}`,
     });
@@ -212,7 +243,7 @@ export class SmartContractWorker {
       hiveTransactionId: payment.hiveTransactionId,
       from: tx.hiveAccount,
       to: PLATFORM_ACCOUNT,
-      amount: COLLECTION_CREATION_FEE,
+      amount: fee,
       currency: "HIVE",
       memo: `Collection deployment · ${payload.name}`,
     });
@@ -224,29 +255,49 @@ export class SmartContractWorker {
       maxSupply: payload.maxSupply,
     });
 
-    const doc = await nftCollectionsRepository.insert(
-      createCollectionDocument({
-        name: payload.name,
-        symbol: payload.symbol,
-        description: payload.description,
-        image: payload.image,
-        creator: tx.hiveAccount,
-        maxSupply: payload.maxSupply,
-        mintPrice: payload.mintPrice,
-        creatorFee: payload.creatorFee,
-        platformFee: payload.platformFee,
-        rarities: payload.rarities,
-        metadataBaseUri: payload.metadataBaseUri,
-      }),
-    );
+    // The row already exists when the collection was prepared with assets
+    // (Phase 2.5B). Otherwise create it here for the legacy/no-asset path.
+    const existing = payload.collectionId ? await nftCollectionsRepository.findById(payload.collectionId) : null;
+    const doc =
+      (existing
+        ? await nftCollectionsRepository.patch(existing.id, { status: "active", creationState: "ACTIVE" })
+        : null) ??
+      (existing ??
+        (await nftCollectionsRepository.insert(
+          createCollectionDocument({
+            name: payload.name,
+            symbol: payload.symbol,
+            description: payload.description,
+            image: payload.image,
+            creator: tx.hiveAccount,
+            maxSupply: payload.maxSupply,
+            mintPrice: payload.mintPrice,
+            creatorFee: payload.creatorFee,
+            platformFee: payload.platformFee,
+            rarities: payload.rarities,
+            metadataBaseUri: payload.metadataBaseUri,
+            creationState: "ACTIVE",
+            collectionImageUri: payload.collectionImageUri,
+            collectionMetadataUri: payload.collectionMetadataUri,
+            assetRootUri: payload.assetRootUri,
+            metadataRootUri: payload.metadataRootUri,
+            assetCount: payload.assetCount ?? 0,
+            reusableAssets: payload.reusableAssets ?? false,
+          }),
+        )));
 
-    await usersRepository.adjustBalance(tx.hiveAccount, -COLLECTION_CREATION_FEE);
+    const assetCount = await nftAssetsRepository.countByCollection(doc.id);
+    if (assetCount !== (doc.assetCount ?? 0)) {
+      await nftCollectionsRepository.patch(doc.id, { assetCount });
+    }
+
+    await usersRepository.adjustBalance(tx.hiveAccount, -fee);
     await activityRepository.record({
       type: "Collection Created",
       actor: tx.hiveAccount,
       collectionId: doc.id,
       label: `@${tx.hiveAccount} created ${doc.name}`,
-      amount: COLLECTION_CREATION_FEE,
+      amount: fee,
       transactionId: tx.transactionId,
       hiveTransactionId: deploy.hiveTransactionId,
     });
@@ -264,7 +315,16 @@ export class SmartContractWorker {
       hiveTransactionId: deploy.hiveTransactionId,
       blockNumber: deploy.blockNumber,
       collectionId: doc.id,
-      result: { collectionId: doc.id, symbol: doc.symbol, fee: COLLECTION_CREATION_FEE },
+      result: {
+        collectionId: doc.id,
+        symbol: doc.symbol,
+        fee,
+        assetCount,
+        collectionImageUri: doc.collectionImageUri,
+        collectionMetadataUri: doc.collectionMetadataUri,
+        assetRootUri: doc.assetRootUri,
+        metadataRootUri: doc.metadataRootUri,
+      },
     };
   }
 

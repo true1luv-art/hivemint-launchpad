@@ -13,6 +13,31 @@ export const raritySchema = z.object({
   weight: z.number().min(0).max(100),
 });
 
+const ipfsUri = z
+  .string()
+  .trim()
+  .regex(/^ipfs:\/\/[a-zA-Z0-9]{10,}(\/.+)?$/, "Must be a canonical ipfs:// URI");
+
+export const assetReferenceSchema = z.object({
+  tokenNumber: z.number().int().min(1),
+  filename: z.string().trim().min(1).max(200),
+  mimeType: z.string().trim().min(3).max(80),
+  size: z.number().int().min(0),
+  imageUri: ipfsUri,
+  metadataUri: ipfsUri,
+  cid: z.string().trim().min(10).max(120),
+});
+
+/** Reference-only asset bundle — raw file data is never accepted here. */
+export const collectionAssetsSchema = z.object({
+  collectionImageUri: ipfsUri,
+  collectionMetadataUri: ipfsUri,
+  assetRootUri: ipfsUri,
+  metadataRootUri: ipfsUri,
+  reusableAssets: z.boolean().default(false),
+  items: z.array(assetReferenceSchema).min(1).max(100_000),
+});
+
 export const createCollectionSchema = z.object({
   requestId,
   name: z.string().trim().min(3).max(60),
@@ -31,6 +56,7 @@ export const createCollectionSchema = z.object({
   platformFee: z.number().min(0).max(50),
   rarities: z.array(raritySchema).min(1).max(10),
   metadataBaseUri: z.string().trim().max(300).optional(),
+  assets: collectionAssetsSchema,
 });
 
 export const mintSchema = z.object({
