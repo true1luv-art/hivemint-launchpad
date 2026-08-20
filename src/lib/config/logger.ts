@@ -13,6 +13,8 @@ export type LogScope =
   | "SEED"
   | "KEYCHAIN"
   | "MARKETPLACE"
+  | "STORAGE"
+  | "ASSETS"
   | "AUTH";
 
 function should(level: keyof typeof ORDER) {

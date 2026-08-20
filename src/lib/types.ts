@@ -43,6 +43,15 @@ export interface Collection {
   holders: number;
   trendingScore: number;
   metadataBaseUri: string;
+  /** IPFS references produced by the asset upload pipeline (Phase 2.5B). */
+  storage?: {
+    collectionImageUri: string;
+    collectionMetadataUri: string;
+    assetRootUri: string;
+    metadataRootUri: string;
+    assetCount: number;
+    reusableAssets: boolean;
+  };
 }
 
 export interface NFTAttribute {

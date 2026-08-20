@@ -60,6 +60,24 @@ export interface AppConfig {
     /** Simulated signing latency, ms. */
     latency: number;
   };
+  /** Asset storage (Mock IPFS in Phase 2.5B, Pinata/Kubo/Filebase in Phase 3). */
+  storage: {
+    provider: "mock-ipfs";
+    /** Simulated per-upload latency, ms. */
+    uploadLatency: number;
+    /** 0..1 — simulated per-upload failure rate, used to exercise retries. */
+    failureRate: number;
+    /** Max size of a single NFT asset file, bytes. */
+    maxAssetFileSize: number;
+    /** Max size of the collection artwork, bytes. */
+    maxCollectionAssetSize: number;
+    /** Max number of NFT asset files per collection. */
+    maxNftAssets: number;
+    /** Accepted image mime types. */
+    supportedImageTypes: string[];
+    /** Accepted file extensions (lowercase, with dot). */
+    supportedExtensions: string[];
+  };
   fees: {
     /**
      * Cost, in HIVE, charged per mintable slot when a collection is deployed.
@@ -92,6 +110,16 @@ export const config: AppConfig = {
   keychain: {
     defaultOutcome: (env("KEYCHAIN_DEFAULT_OUTCOME") as "approve" | "reject" | undefined) ?? "approve",
     latency: num("KEYCHAIN_LATENCY", 120),
+  },
+  storage: {
+    provider: "mock-ipfs",
+    uploadLatency: num("STORAGE_UPLOAD_LATENCY", 25),
+    failureRate: num("STORAGE_FAILURE_RATE", 0),
+    maxAssetFileSize: num("MAX_ASSET_FILE_SIZE", 10 * 1024 * 1024),
+    maxCollectionAssetSize: num("MAX_COLLECTION_ASSET_SIZE", 15 * 1024 * 1024),
+    maxNftAssets: num("MAX_NFT_ASSETS", 10_000),
+    supportedImageTypes: ["image/png", "image/jpeg", "image/webp", "image/gif"],
+    supportedExtensions: [".png", ".jpg", ".jpeg", ".webp", ".gif"],
   },
   fees: {
     nftCreationCostPerMint: num("NFT_CREATION_COST_PER_MINT", 0.1),

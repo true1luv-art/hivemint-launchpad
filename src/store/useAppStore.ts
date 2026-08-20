@@ -34,6 +34,10 @@ export interface CreateCollectionInput {
   platformFee: number;
   rarities: RarityConfig[];
   metadataBaseUri: string;
+  /** IPFS reference bundle from `uploadCollectionAssets` — required once assets exist. */
+  assets?: Collection["storage"];
+  /** maxSupply-based deployment fee; falls back to the flat legacy fee. */
+  creationCost?: number;
 }
 
 export interface MintResult {
@@ -159,24 +163,30 @@ export const useAppStore = create<AppState>()(
           holders: 0,
           trendingScore: 50,
           metadataBaseUri: input.metadataBaseUri,
+          ...(input.assets ? { storage: input.assets } : {}),
         };
+
+        const fee = input.creationCost ?? COLLECTION_CREATION_FEE;
+        if ((state.balances[creator] ?? 0) < fee) {
+          throw new Error(`Insufficient HIVE balance — deployment costs ${fee.toFixed(2)} HIVE`);
+        }
 
         const tx = await hiveService.transfer(
           creator,
           "hivemint",
-          COLLECTION_CREATION_FEE,
+          fee,
           `Collection deployment · ${collection.name}`,
         );
         await databaseService.saveCollection(collection);
 
         set((s) => ({ collections: [collection, ...s.collections] }));
-        get().updateBalance(creator, -COLLECTION_CREATION_FEE);
+        get().updateBalance(creator, -fee);
         get().addTransaction({
           txId: tx.txId,
           type: "collection_create",
           from: creator,
           to: "hivemint",
-          amount: COLLECTION_CREATION_FEE,
+          amount: fee,
           memo: `Collection deployment · ${collection.name}`,
         });
         get().addActivity({
@@ -184,7 +194,7 @@ export const useAppStore = create<AppState>()(
           actor: creator,
           collectionId: collection.id,
           label: `@${creator} created ${collection.name}`,
-          amount: COLLECTION_CREATION_FEE,
+          amount: fee,
           txId: tx.txId,
         });
         return collection;
