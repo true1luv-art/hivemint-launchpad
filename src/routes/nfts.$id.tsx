@@ -49,7 +49,7 @@ function NftDetail() {
         description="This token no longer exists in the local prototype state."
         action={
           <Button asChild variant="outline">
-            <Link to="/marketplace">Back to marketplace</Link>
+            <Link to="/collections">Back to collections</Link>
           </Button>
         }
       />
