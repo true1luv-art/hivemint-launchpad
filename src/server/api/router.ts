@@ -332,7 +332,7 @@ export async function handleApiRequest(
         const data = createCollectionSchema.parse(payload);
 
         // Idempotency: a retried request never creates a second collection.
-        const existing = await transactionsPendingRepository.findByRequestId(requestId);
+        const existing = await transactionsPendingRepository.findOne({ requestId });
         if (existing) {
           const receipt = await transactionsProcessedRepository.findByTransactionId(existing.transactionId);
           return json({
