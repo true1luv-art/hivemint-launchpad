@@ -286,6 +286,7 @@ export function createSeedData(): SeedData {
     creatorFee: 85,
     platformFee: 5,
     rarities: DEFAULT_RARITIES.map((r) => ({ ...r })),
+    traitLayers: buildCollectionTraitLayers(`col-${i + 1}`, s.nouns),
     status: s.minted >= s.maxSupply ? "Sold Out" : "Minting",
     createdAt: ago(s.createdDaysAgo * DAY),
     floorPrice: s.floorPrice,
