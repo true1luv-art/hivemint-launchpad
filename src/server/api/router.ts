@@ -358,6 +358,7 @@ export async function handleApiRequest(
           platformFee: data.platformFee,
           rarities: data.rarities,
           traitLayers: data.traitLayers as never,
+          importedNfts: data.importedNfts as never,
           metadataBaseUri: data.metadataBaseUri,
           assets: data.assets,
         });

@@ -78,6 +78,17 @@ export interface AppConfig {
     /** Accepted file extensions (lowercase, with dot). */
     supportedExtensions: string[];
   };
+  /**
+   * Rarity CLASS thresholds. Display labels only — they are derived from the
+   * rarity rank percentile and never used as source rarity weights.
+   * Pipeline: trait frequency -> rarity score -> rarity rank -> rarity class.
+   */
+  rarity: {
+    /** Ordered rarest-first. `topPercent` is a share of the collection (0-1). */
+    classes: { name: string; topPercent: number }[];
+    /** Label for everything outside the configured buckets. */
+    fallbackClass: string;
+  };
   fees: {
     /**
      * Cost, in HIVE, charged per mintable slot when a collection is deployed.
@@ -120,6 +131,15 @@ export const config: AppConfig = {
     maxNftAssets: num("MAX_NFT_ASSETS", 10_000),
     supportedImageTypes: ["image/png", "image/jpeg", "image/webp", "image/gif"],
     supportedExtensions: [".png", ".jpg", ".jpeg", ".webp", ".gif"],
+  },
+  rarity: {
+    classes: [
+      { name: "Legendary", topPercent: num("RARITY_LEGENDARY_TOP", 0.01) },
+      { name: "Epic", topPercent: num("RARITY_EPIC_TOP", 0.05) },
+      { name: "Rare", topPercent: num("RARITY_RARE_TOP", 0.15) },
+      { name: "Uncommon", topPercent: num("RARITY_UNCOMMON_TOP", 0.4) },
+    ],
+    fallbackClass: env("RARITY_FALLBACK_CLASS") ?? "Common",
   },
   fees: {
     nftCreationCostPerMint: num("NFT_CREATION_COST_PER_MINT", 0.1),

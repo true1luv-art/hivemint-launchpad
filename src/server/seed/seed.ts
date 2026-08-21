@@ -92,6 +92,7 @@ export async function seedDatabase(options: { force?: boolean } = {}): Promise<S
     description: n.description,
     image: n.image,
     owner: n.owner,
+    mintState: "MINTED",
     rarity: n.rarity,
     traits: n.traits,
     rarityScore: n.rarityScore,

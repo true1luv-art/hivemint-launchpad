@@ -8,7 +8,33 @@ class NftsRepository extends BaseRepository<NftDocument> {
   }
 
   listAll() {
-    return this.find(undefined, { sort: { field: "createdAt", dir: "desc" } });
+    return this.find({ mintState: "MINTED" }, { sort: { field: "createdAt", dir: "desc" } });
+  }
+
+  /** Imported records still waiting to be minted, lowest token id first. */
+  listUnminted(collectionId: string) {
+    return this.find(
+      { collectionId, mintState: "UNMINTED" },
+      { sort: { field: "tokenId", dir: "asc" }, limit: 1000 },
+    );
+  }
+
+  countUnminted(collectionId: string) {
+    return this.count({ collectionId, mintState: "UNMINTED" });
+  }
+
+  /**
+   * Atomically claims one EXISTING unminted NFT for a buyer.
+   * The platform never generates a token here — it hands over one that the
+   * creator already imported.
+   */
+  async claimUnminted(collectionId: string, owner: string, mintTransactionId: string) {
+    const next = (await this.listUnminted(collectionId))[0];
+    if (!next) return null;
+    return this.findOneAndUpdate(
+      { id: next.id, mintState: "UNMINTED" },
+      { mintState: "MINTED", owner, mintTransactionId, status: "owned", updatedAt: nowIso() },
+    );
   }
 
   listByOwner(owner: string) {
@@ -16,7 +42,7 @@ class NftsRepository extends BaseRepository<NftDocument> {
   }
 
   listByCollection(collectionId: string) {
-    return this.find({ collectionId }, { sort: { field: "mintNumber", dir: "asc" } });
+    return this.find({ collectionId, mintState: "MINTED" }, { sort: { field: "mintNumber", dir: "asc" } });
   }
 
   findByMintTransaction(mintTransactionId: string) {
@@ -45,7 +71,7 @@ class NftsRepository extends BaseRepository<NftDocument> {
   }
 
   async countHolders(collectionId: string) {
-    const docs = await this.find({ collectionId });
+    const docs = await this.find({ collectionId, mintState: "MINTED" });
     return new Set(docs.map((d) => d.owner)).size;
   }
 }

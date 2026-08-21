@@ -42,6 +42,11 @@ export interface CreateCollectionInput {
   assets?: Collection["storage"];
   /** maxSupply-based deployment fee; falls back to the flat legacy fee. */
   creationCost?: number;
+  /**
+   * Imported, already-authored NFTs. They are stored as an UNMINTED pool —
+   * minting hands one over, it never generates a token.
+   */
+  importedNfts?: NFT[];
 }
 
 export interface MintResult {
@@ -59,6 +64,8 @@ interface AppState {
   listings: Listing[];
   transactions: Transaction[];
   activities: Activity[];
+  /** Unminted imported NFTs, keyed by collection id. */
+  unminted: Record<string, NFT[]>;
   connecting: boolean;
 
   connectWallet: () => Promise<void>;
@@ -99,6 +106,7 @@ export const useAppStore = create<AppState>()(
       listings: seed.listings,
       transactions: seed.transactions,
       activities: seed.activities,
+      unminted: {},
       connecting: false,
 
       connectWallet: async () => {
@@ -185,7 +193,17 @@ export const useAppStore = create<AppState>()(
         );
         await databaseService.saveCollection(collection);
 
-        set((s) => ({ collections: [collection, ...s.collections] }));
+        set((s) => ({
+          collections: [collection, ...s.collections],
+          ...(input.importedNfts?.length
+            ? {
+                unminted: {
+                  ...s.unminted,
+                  [collectionId]: input.importedNfts.map((nft) => ({ ...nft, collectionId })),
+                },
+              }
+            : {}),
+        }));
         get().updateBalance(creator, -fee);
         get().addTransaction({
           txId: tx.txId,
@@ -209,6 +227,18 @@ export const useAppStore = create<AppState>()(
       selectRandomNFT: async (collectionId) => {
         const collection = get().collections.find((c) => c.id === collectionId);
         if (!collection || collection.minted >= collection.maxSupply) return null;
+
+        // Imported collection: claim an existing unminted record at random.
+        const pool = get().unminted[collectionId];
+        if (pool?.length) {
+          const index = Math.floor(Math.random() * pool.length);
+          const picked = pool[index]!;
+          set((s) => ({
+            unminted: { ...s.unminted, [collectionId]: (s.unminted[collectionId] ?? []).filter((_, i) => i !== index) },
+          }));
+          return { ...picked, owner: get().user?.username ?? "alice", createdAt: new Date().toISOString() };
+        }
+
         const tokenId = await databaseService.nextTokenId(collection);
         const token = await marketplaceService.generateToken(collection, tokenId);
         return buildNFT({

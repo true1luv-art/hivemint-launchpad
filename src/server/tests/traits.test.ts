@@ -228,8 +228,9 @@ test("createCollectionSchema rejects an invalid trait configuration", () => {
   });
   assert(good.success, `valid config was rejected: ${good.success ? "" : good.error.issues[0]?.message}`);
 
-  const missing = createCollectionSchema.safeParse({ ...base, traitLayers: [] });
-  assert(!missing.success, "empty trait layers must be rejected");
+  // Imported collections carry no generative configuration at all.
+  const imported = createCollectionSchema.safeParse({ ...base });
+  assert(imported.success, "imported collections without trait layers must be accepted");
 
   const negative = createCollectionSchema.safeParse({
     ...base,
