@@ -1,3 +1,4 @@
+import type { GeneratedTrait } from "@/lib/traits/types";
 import type { NFTAttribute, Rarity } from "@/lib/types";
 
 export type NftDocumentStatus = "owned" | "listed" | "burned";
@@ -19,6 +20,13 @@ export interface NftDocument {
   imageUri?: string | undefined;
   /** id of the `nft_assets` row this token reuses — assets are never duplicated. */
   assetId?: string | undefined;
+  /** Actual generated traits behind this token. */
+  traits: GeneratedTrait[];
+  /** Sum of 1 / probability across every trait. */
+  rarityScore: number;
+  /** 1 = rarest in the ranked pool. */
+  rarityRank: number;
+  rarityRankTotal: number;
   attributes: NFTAttribute[];
   estimatedValue: number;
   status: NftDocumentStatus;

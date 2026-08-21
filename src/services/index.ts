@@ -1,4 +1,5 @@
 import { mockTxId } from "@/lib/art";
+import { RANK_POOL_CAP } from "@/lib/mock-data";
 import { generateInventory } from "@/lib/traits/generator";
 import type { GeneratedToken } from "@/lib/traits/types";
 import type { Collection, NFT } from "@/lib/types";

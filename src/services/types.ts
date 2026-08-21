@@ -1,4 +1,5 @@
-import type { Collection, NFT, Rarity, RarityConfig } from "@/lib/types";
+import type { GeneratedToken } from "@/lib/traits/types";
+import type { Collection, NFT } from "@/lib/types";
 
 /**
  * Service abstraction layer.
