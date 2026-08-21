@@ -1,3 +1,4 @@
+import type { TraitLayerConfig } from "@/lib/traits/types";
 import type { RarityConfig } from "@/lib/types";
 
 export type CollectionDocumentStatus = "draft" | "active" | "paused" | "sold_out" | "completed";
@@ -29,6 +30,8 @@ export interface CollectionDocument {
   creatorFee: number;
   platformFee: number;
   rarities: RarityConfig[];
+  /** Generative trait configuration (layers -> values -> weights). */
+  traitLayers?: TraitLayerConfig[] | undefined;
   metadataBaseUri: string;
   status: CollectionDocumentStatus;
   creationState: CollectionCreationState;
@@ -65,6 +68,7 @@ export interface CreateCollectionInput {
   creatorFee: number;
   platformFee: number;
   rarities: RarityConfig[];
+  traitLayers?: TraitLayerConfig[] | undefined;
   metadataBaseUri?: string | undefined;
   creationState?: CollectionCreationState | undefined;
   status?: CollectionDocumentStatus | undefined;

@@ -357,6 +357,7 @@ export async function handleApiRequest(
           creatorFee: data.creatorFee,
           platformFee: data.platformFee,
           rarities: data.rarities,
+          traitLayers: data.traitLayers as never,
           metadataBaseUri: data.metadataBaseUri,
           assets: data.assets,
         });

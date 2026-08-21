@@ -31,6 +31,7 @@ export interface BuildNftInput {
 
 /** The trait configuration a collection generates from. */
 export function collectionTraitLayers(collection: CollectionDocument): TraitLayerConfig[] {
+  if (collection.traitLayers?.length) return collection.traitLayers;
   return buildCollectionTraitLayers(collection.id, collection.name.split(" ").filter(Boolean));
 }
 

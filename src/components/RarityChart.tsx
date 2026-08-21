@@ -1,38 +1,74 @@
-import type { RarityConfig } from "@/lib/types";
+import { useMemo } from "react";
+
+import { calculateTraitFrequencies, type TraitLayerConfig } from "@/lib/traits";
+import type { NFT } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-const barColor: Record<string, string> = {
-  Common: "bg-rarity-common",
-  Rare: "bg-rarity-rare",
-  Epic: "bg-rarity-epic",
-  Legendary: "bg-rarity-legendary",
-};
+const pct = (value: number) => `${(value * 100).toFixed(1)}%`;
 
-export function RarityChart({ rarities, className }: { rarities: RarityConfig[]; className?: string }) {
-  const total = rarities.reduce((s, r) => s + r.weight, 0) || 100;
+/**
+ * Trait-frequency display: for every layer, how often each value actually
+ * appears in the minted inventory vs. its configured probability.
+ */
+export function RarityChart({
+  layers,
+  nfts,
+  className,
+}: {
+  layers: TraitLayerConfig[];
+  nfts: NFT[];
+  className?: string;
+}) {
+  const groups = useMemo(() => {
+    const rows = calculateTraitFrequencies(layers, nfts.map((n) => ({ traits: n.traits ?? [] })));
+    const map = new Map<string, { layerName: string; rows: typeof rows }>();
+    for (const row of rows) {
+      const group = map.get(row.layerId) ?? { layerName: row.layerName, rows: [] };
+      group.rows.push(row);
+      map.set(row.layerId, group);
+    }
+    for (const group of map.values()) group.rows.sort((a, b) => b.actualFrequency - a.actualFrequency);
+    return [...map.values()];
+  }, [layers, nfts]);
+
+  if (groups.length === 0) {
+    return <p className={cn("text-sm text-muted-foreground", className)}>No trait layers configured.</p>;
+  }
+
   return (
-    <div className={cn("space-y-4", className)}>
-      <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-surface-raised">
-        {rarities.map((r) => (
-          <div
-            key={r.rarity}
-            className={cn("h-full", barColor[r.rarity])}
-            style={{ width: `${(r.weight / total) * 100}%` }}
-            title={`${r.rarity} ${r.weight}%`}
-          />
-        ))}
-      </div>
-      <ul className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {rarities.map((r) => (
-          <li key={r.rarity} className="rounded-lg border border-border bg-surface px-3 py-2">
-            <div className="flex items-center gap-2">
-              <span className={cn("size-2 rounded-full", barColor[r.rarity])} />
-              <span className="text-xs text-muted-foreground">{r.rarity}</span>
-            </div>
-            <p className="mt-1 font-display text-lg font-semibold">{r.weight}%</p>
-          </li>
-        ))}
-      </ul>
+    <div className={cn("space-y-6", className)}>
+      <p className="text-xs text-muted-foreground">
+        Observed across {nfts.length} minted {nfts.length === 1 ? "item" : "items"} — dashed marker is the
+        configured probability.
+      </p>
+      {groups.map((group) => (
+        <section key={group.layerName} className="space-y-2">
+          <h3 className="text-xs font-medium tracking-wider text-muted-foreground uppercase">{group.layerName}</h3>
+          <ul className="space-y-2">
+            {group.rows.map((row) => (
+              <li key={row.traitValueId} className="space-y-1">
+                <div className="flex items-baseline justify-between gap-3 text-sm">
+                  <span className="truncate">{row.traitValueName}</span>
+                  <span className="shrink-0 tabular-nums text-muted-foreground">
+                    {row.count} · {pct(row.actualFrequency)}
+                  </span>
+                </div>
+                <div className="relative h-2 w-full overflow-hidden rounded-full bg-surface-raised">
+                  <div
+                    className="h-full rounded-full bg-primary/70"
+                    style={{ width: `${Math.min(100, row.actualFrequency * 100)}%` }}
+                  />
+                  <span
+                    className="absolute top-0 h-full w-px bg-foreground/50"
+                    style={{ left: `${Math.min(100, row.configuredProbability * 100)}%` }}
+                    title={`Configured ${pct(row.configuredProbability)}`}
+                  />
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))}
     </div>
   );
 }

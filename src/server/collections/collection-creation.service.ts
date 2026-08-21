@@ -10,6 +10,7 @@
  * the transaction.
  */
 import { collectionCreationCost } from "@/lib/config/config";
+import type { TraitLayerConfig } from "@/lib/traits/types";
 import { logger } from "@/lib/config/logger";
 import { createCollectionDocument } from "@/lib/modules/nft-collections/nft-collections.model";
 import { nftCollectionsRepository } from "@/lib/modules/nft-collections/nft-collections.repository";
@@ -56,6 +57,7 @@ export interface CreateCollectionRequest {
   creatorFee: number;
   platformFee: number;
   rarities: RarityConfig[];
+  traitLayers?: TraitLayerConfig[] | undefined;
   metadataBaseUri?: string | undefined;
   assets: CollectionAssetBundle;
 }
@@ -125,6 +127,7 @@ export async function prepareCollection(request: CreateCollectionRequest): Promi
       creatorFee: request.creatorFee,
       platformFee: request.platformFee,
       rarities: request.rarities,
+      traitLayers: request.traitLayers,
       metadataBaseUri: request.metadataBaseUri,
       // Not live yet: only a confirmed CREATE_COLLECTION flips this to ACTIVE.
       status: "draft",
@@ -173,6 +176,7 @@ export async function prepareCollection(request: CreateCollectionRequest): Promi
       creatorFee: doc.creatorFee,
       platformFee: doc.platformFee,
       rarities: doc.rarities,
+      traitLayers: doc.traitLayers ?? [],
       metadataBaseUri: doc.metadataBaseUri,
       collectionImageUri: request.assets.collectionImageUri,
       collectionMetadataUri: request.assets.collectionMetadataUri,

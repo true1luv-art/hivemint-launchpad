@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { validateTraitConfig, type TraitLayerConfig } from "@/lib/traits";
+
 const hiveAccount = z
   .string()
   .trim()
@@ -38,6 +40,23 @@ export const collectionAssetsSchema = z.object({
   items: z.array(assetReferenceSchema).min(1).max(100_000),
 });
 
+export const traitValueSchema = z.object({
+  id: z.string().trim().min(1).max(120),
+  name: z.string().trim().min(1).max(80),
+  weight: z.number().finite().min(0).max(1_000_000),
+  enabled: z.boolean().default(true),
+  assetId: z.string().trim().min(1).max(120).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+});
+
+export const traitLayerSchema = z.object({
+  id: z.string().trim().min(1).max(120),
+  name: z.string().trim().min(1).max(80),
+  order: z.number().int().min(0).max(999),
+  enabled: z.boolean().default(true),
+  values: z.array(traitValueSchema).min(1).max(500),
+});
+
 export const createCollectionSchema = z.object({
   requestId,
   name: z.string().trim().min(3).max(60),
@@ -55,8 +74,14 @@ export const createCollectionSchema = z.object({
   creatorFee: z.number().min(0).max(50),
   platformFee: z.number().min(0).max(50),
   rarities: z.array(raritySchema).min(1).max(10),
+  traitLayers: z.array(traitLayerSchema).min(1).max(50),
   metadataBaseUri: z.string().trim().max(300).optional(),
   assets: collectionAssetsSchema,
+}).superRefine((data, ctx) => {
+  // Weights, layers and combination coverage are validated by one engine.
+  for (const issue of validateTraitConfig(data.traitLayers as TraitLayerConfig[], data.maxSupply)) {
+    ctx.addIssue({ code: "custom", path: ["traitLayers"], message: issue.message });
+  }
 });
 
 export const mintSchema = z.object({
