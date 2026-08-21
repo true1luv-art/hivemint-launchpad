@@ -143,8 +143,9 @@ export const useAppStore = create<AppState>()(
       createCollection: async (input) => {
         const state = get();
         const creator = state.user?.username ?? "alice";
+        const collectionId = uid("col");
         const collection: Collection = {
-          id: uid("col"),
+          id: collectionId,
           name: input.name,
           symbol: input.symbol.toUpperCase(),
           creator,
@@ -156,6 +157,7 @@ export const useAppStore = create<AppState>()(
           creatorFee: input.creatorFee,
           platformFee: input.platformFee,
           rarities: input.rarities,
+          traitLayers: input.traitLayers ?? buildCollectionTraitLayers(collectionId, input.name.split(" ").filter(Boolean)),
           status: "Minting",
           createdAt: new Date().toISOString(),
           floorPrice: input.mintPrice,
@@ -203,13 +205,14 @@ export const useAppStore = create<AppState>()(
       selectRandomNFT: async (collectionId) => {
         const collection = get().collections.find((c) => c.id === collectionId);
         if (!collection || collection.minted >= collection.maxSupply) return null;
-        const rarity = await marketplaceService.rollRarity(collection.rarities);
         const tokenId = await databaseService.nextTokenId(collection);
+        const token = await marketplaceService.generateToken(collection, tokenId);
         return buildNFT({
           collection,
           mintNumber: tokenId,
           owner: get().user?.username ?? "alice",
-          rarity,
+          token,
+          rankTotal: Math.max(1, Math.min(collection.maxSupply, RANK_POOL_CAP)),
           createdAt: new Date().toISOString(),
           seedKey: `${collection.id}-${tokenId}-${Date.now()}`,
         });
