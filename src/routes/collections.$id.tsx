@@ -85,7 +85,7 @@ function CollectionDetail() {
       <section className="grid gap-6 lg:grid-cols-[1fr_380px]">
         <div className="surface-card p-6">
           <h2 className="font-display text-lg font-semibold">Trait distribution</h2>
-          <RarityChart layers={collection.traitLayers ?? []} nfts={items} className="mt-4" />
+          <RarityChart layers={collection.traitLayers ?? []} nfts={allItems} className="mt-4" />
         </div>
         <div className="surface-card p-5">
           <h2 className="font-display text-lg font-semibold">Collection activity</h2>
