@@ -52,6 +52,8 @@ function CollectionDetail() {
     [nfts, id, rarity, status, listings],
   );
 
+  const allItems = useMemo(() => nfts.filter((n) => n.collectionId === id), [nfts, id]);
+
   const forSaleCount = useMemo(
     () => nfts.filter((n) => n.collectionId === id && listings.some((l) => l.nftId === n.id)).length,
     [nfts, listings, id],
