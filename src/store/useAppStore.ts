@@ -4,6 +4,7 @@ import { persist, createJSONStorage } from "zustand/middleware";
 import { generateArtwork, mockTxId } from "@/lib/art";
 import { buildNFT, createSeedData, CURRENT_USER, rarityMultiplier, RANK_POOL_CAP } from "@/lib/mock-data";
 import { buildCollectionTraitLayers } from "@/lib/traits/presets";
+import type { TraitLayerConfig } from "@/lib/traits/types";
 import type {
   Activity,
   Collection,
