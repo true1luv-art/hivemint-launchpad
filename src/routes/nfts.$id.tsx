@@ -9,6 +9,7 @@ import { ListingModal } from "@/components/ListingModal";
 import { MetadataPanel } from "@/components/MetadataPanel";
 import { PurchaseModal } from "@/components/PurchaseModal";
 import { RarityBadge } from "@/components/RarityBadge";
+import { TraitPanel } from "@/components/TraitPanel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { hive } from "@/lib/format";
@@ -168,6 +169,8 @@ function NftDetail() {
               </div>
             ) : null}
           </section>
+
+          <TraitPanel nft={nft} />
 
           <MetadataPanel nft={nft} />
         </div>
