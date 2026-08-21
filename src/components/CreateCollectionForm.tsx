@@ -1,143 +1,188 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { Loader2, Rocket } from "lucide-react";
+import { Loader2, Rocket, Search } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { TraitLayerEditor } from "@/components/TraitLayerEditor";
+import { Progress } from "@/components/ui/progress";
+import { AssetUploader, type PickedFile } from "@/components/AssetUploader";
+import { ImportDropzone } from "@/components/import/ImportDropzone";
+import { ValidationReport } from "@/components/import/ValidationReport";
+import { TraitAnalysis } from "@/components/import/TraitAnalysis";
+import { ImportPreviewGrid } from "@/components/import/ImportPreviewGrid";
 import { TransactionStatus, type TxState } from "@/components/TransactionStatus";
 import { generateArtwork } from "@/lib/art";
 import { hive, num } from "@/lib/format";
 import { DEFAULT_RARITIES } from "@/lib/mock-data";
-import type { RarityConfig } from "@/lib/types";
-import { buildTraitLayers } from "@/lib/traits/presets";
-import { validateTraitConfig } from "@/lib/traits/validation";
-import type { TraitLayerConfig } from "@/lib/traits/types";
 import { collectionCreationCost, config } from "@/lib/config/config";
-import { AssetUploader, type PickedFile } from "@/components/AssetUploader";
-import { Progress } from "@/components/ui/progress";
-import {
-  uploadCollectionAssets,
-  validateUploadInput,
-  type CollectionAssetBundle,
-  type UploadState,
-} from "@/lib/storage/collection-upload";
+import { buildImportReport, parseMetadataFiles, uploadImportedCollection } from "@/lib/import";
+import { traitLayersFromImport } from "@/lib/import/derive";
+import type { ImportReport } from "@/lib/import/types";
+import type { UploadState } from "@/lib/import/pipeline";
+import type { NFT, Rarity } from "@/lib/types";
 import { useAppStore } from "@/store/useAppStore";
 import { cn } from "@/lib/utils";
 
+const STEPS = ["Details", "Upload", "Review", "Deploy"] as const;
+type Step = 0 | 1 | 2 | 3;
+
+const PREVIEW_SAMPLE = 24;
+const uid = (prefix: string) => `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
+const legacyRarity = (label: string): Rarity =>
+  label === "Legendary" || label === "Epic" || label === "Rare" ? label : "Common";
+
+/**
+ * Collection IMPORT wizard.
+ *
+ * The platform never generates NFTs: the creator brings a finished collection
+ * (metadata JSON + images) and this flow validates, matches, analyses and
+ * indexes it, then pins it and registers the collection.
+ */
 export function CreateCollectionForm() {
   const navigate = useNavigate();
   const createCollection = useAppStore((s) => s.createCollection);
   const balance = useAppStore((s) => (s.user ? (s.balances[s.user.username] ?? 0) : 0));
 
+  const [step, setStep] = useState<Step>(0);
   const [name, setName] = useState("Ember Sentinels");
   const [symbol, setSymbol] = useState("EMBS");
   const [description, setDescription] = useState(
     "A guardian series forged in the Hive furnace. Each sentinel protects a shard of the chain.",
   );
-  const [maxSupply, setMaxSupply] = useState("2500");
   const [mintPrice, setMintPrice] = useState("4.00");
   const [creatorFee, setCreatorFee] = useState("85");
   const [platformFee, setPlatformFee] = useState("5");
-  const [metadataBaseUri, setMetadataBaseUri] = useState("https://meta.hivemint.app/embs/");
-  const [rarities] = useState<RarityConfig[]>(DEFAULT_RARITIES.map((r) => ({ ...r })));
-  const [traitLayers, setTraitLayers] = useState<TraitLayerConfig[]>(() => buildTraitLayers("draft"));
-  const [state, setState] = useState<TxState>("idle");
-  const [imageSeed, setImageSeed] = useState(1);
   const [coverFile, setCoverFile] = useState<PickedFile | null>(null);
-  const [assetFiles, setAssetFiles] = useState<PickedFile[]>([]);
-  const [reusableAssets, setReusableAssets] = useState(true);
-  const [upload, setUpload] = useState<UploadState | null>(null);
-  const [bundle, setBundle] = useState<CollectionAssetBundle | null>(null);
 
-  // Object URLs must be released when the picked files change.
+  const [metadataFiles, setMetadataFiles] = useState<File[]>([]);
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
+  const [useImportOrder, setUseImportOrder] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [report, setReport] = useState<ImportReport | null>(null);
+
+  const [state, setState] = useState<TxState>("idle");
+  const [upload, setUpload] = useState<UploadState | null>(null);
+  const previewUrls = useRef<string[]>([]);
+
+  useEffect(
+    () => () => {
+      previewUrls.current.forEach((url) => URL.revokeObjectURL(url));
+    },
+    [],
+  );
   useEffect(
     () => () => {
       if (coverFile) URL.revokeObjectURL(coverFile.previewUrl);
     },
     [coverFile],
   );
-  useEffect(
-    () => () => {
-      assetFiles.forEach((f) => URL.revokeObjectURL(f.previewUrl));
-    },
-    [assetFiles],
-  );
 
-  const image = useMemo(
-    () => generateArtwork(`preview-${symbol}-${name}-${imageSeed}`, "Epic"),
-    [symbol, name, imageSeed],
-  );
-
-  const supply = Number(maxSupply) || 0;
+  const supply = report?.statistics.totalNfts ?? 0;
   const creationCost = collectionCreationCost(supply);
-  const assetIssues = useMemo(() => {
-    if (!coverFile || assetFiles.length === 0) return [];
-    return validateUploadInput({
-      name,
-      symbol,
-      description,
-      creator: "alice",
-      maxSupply: supply,
-      mintPrice: Number(mintPrice) || 0,
-      reusableAssets,
-      collectionImage: coverFile.file,
-      nftAssets: assetFiles.map((f) => f.file),
-    });
-  }, [coverFile, assetFiles, name, symbol, description, supply, mintPrice, reusableAssets]);
+  const fallbackImage = useMemo(() => generateArtwork(`preview-${symbol}-${name}`, "Epic"), [symbol, name]);
 
-  const traitIssues = validateTraitConfig(traitLayers, supply);
-  const valid =
-    name.trim().length > 1 &&
-    symbol.trim().length > 1 &&
-    Number(maxSupply) > 0 &&
-    Number(mintPrice) > 0 &&
-    traitIssues.length === 0 &&
-    !!coverFile &&
-    assetFiles.length > 0 &&
-    assetIssues.length === 0;
+  const detailsValid = name.trim().length > 1 && symbol.trim().length > 1 && Number(mintPrice) > 0 && !!coverFile;
 
-  const submit = async () => {
-    if (!valid || !coverFile) {
-      toast.error("Check the form", {
-        description:
-          assetIssues[0]?.message ??
-          traitIssues[0]?.message ??
-          "Upload the collection artwork and NFT assets, and configure your trait layers.",
+  const analyze = async () => {
+    setAnalyzing(true);
+    try {
+      const parsed = await parseMetadataFiles(metadataFiles);
+      const images = imageFiles.map((file) => ({ name: file.name }));
+      const base = buildImportReport({
+        records: parsed.records,
+        images,
+        maxSupply: parsed.records.length,
+        parseIssues: parsed.issues,
+        useImportOrder,
       });
-      return;
+
+      // Previews only for the sample the review step actually renders.
+      previewUrls.current.forEach((url) => URL.revokeObjectURL(url));
+      previewUrls.current = [];
+      const byName = new Map(imageFiles.map((f) => [f.name, f]));
+      const sample = [...base.nfts].sort((a, b) => a.rarityRank - b.rarityRank).slice(0, PREVIEW_SAMPLE);
+      for (const nft of sample) {
+        const file = nft.matchedFilename ? byName.get(nft.matchedFilename) : undefined;
+        if (!file) continue;
+        const url = URL.createObjectURL(file);
+        previewUrls.current.push(url);
+        nft.previewUrl = url;
+      }
+
+      setReport({ ...base });
+      setStep(2);
+      if (!base.ready) toast.error("Import has errors", { description: "Fix them and analyse again." });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not analyse the package");
+    } finally {
+      setAnalyzing(false);
     }
+  };
+
+  const deploy = async () => {
+    if (!report?.ready || !coverFile) return;
     if (balance < creationCost) {
       toast.error("Insufficient HIVE balance", {
-        description: `Deploying ${num(supply)} NFTs costs ${hive(creationCost)}.`,
+        description: `Importing ${num(supply)} NFTs costs ${hive(creationCost)}.`,
       });
       return;
     }
     setState("pending");
     try {
-      // 1. Assets first — no transaction exists until every CID is pinned.
-      const uploaded =
-        bundle ??
-        (await uploadCollectionAssets(
-          {
-            name: name.trim(),
-            symbol: symbol.trim().toUpperCase(),
-            description: description.trim(),
-            creator: "alice",
-            maxSupply: supply,
-            mintPrice: Number(mintPrice),
-            reusableAssets,
-            collectionImage: coverFile.file,
-            nftAssets: assetFiles.map((f) => f.file),
-          },
-          setUpload,
-        ));
-      setBundle(uploaded);
+      const byName = new Map(imageFiles.map((f) => [f.name, f]));
+      const bundle = await uploadImportedCollection(
+        {
+          name: name.trim(),
+          symbol: symbol.trim().toUpperCase(),
+          description: description.trim(),
+          creator: "alice",
+          maxSupply: supply,
+          mintPrice: Number(mintPrice),
+          collectionImage: coverFile.file,
+          imageFiles: byName,
+          nfts: report.nfts,
+        },
+        setUpload,
+      );
 
-      // 2. Then deploy, carrying ipfs:// references only.
+      const uriByToken = new Map(bundle.items.map((item) => [item.tokenId, item]));
+      const importedNfts: NFT[] = report.nfts.map((nft) => {
+        const ref = uriByToken.get(nft.tokenId);
+        return {
+          id: uid("nft"),
+          collectionId: "",
+          collectionName: name.trim(),
+          tokenId: nft.tokenId,
+          name: nft.name,
+          description: nft.description || description.trim(),
+          image: nft.previewUrl ?? ref?.imageUri ?? fallbackImage,
+          rarity: legacyRarity(nft.rarityClass),
+          rarityClass: legacyRarity(nft.rarityClass),
+          traits: nft.attributes.map((attribute) => ({
+            layerId: attribute.trait_type,
+            layerName: attribute.trait_type,
+            traitValueId: `${attribute.trait_type}:${attribute.value}`,
+            traitValueName: String(attribute.value),
+            weight: 0,
+            probability: 0,
+          })),
+          rarityScore: nft.rarityScore,
+          rarityRank: nft.rarityRank,
+          rarityRankTotal: report.nfts.length,
+          mintNumber: nft.tokenId,
+          maxSupply: supply,
+          owner: "",
+          attributes: nft.attributes.map((attribute) => ({ trait: attribute.trait_type, value: attribute.value })),
+          metadataUri: ref?.metadataUri ?? "",
+          estimatedValue: Number(mintPrice),
+          createdAt: new Date().toISOString(),
+          status: "Owned",
+        };
+      });
+
       const collection = await createCollection({
         name: name.trim(),
         symbol: symbol.trim().toUpperCase(),
@@ -147,161 +192,214 @@ export function CreateCollectionForm() {
         mintPrice: Number(mintPrice),
         creatorFee: Number(creatorFee),
         platformFee: Number(platformFee),
-        rarities,
-        traitLayers,
-        metadataBaseUri: uploaded.metadataRootUri,
+        rarities: DEFAULT_RARITIES.map((r) => ({ ...r })),
+        traitLayers: traitLayersFromImport(report),
+        metadataBaseUri: bundle.metadataRootUri,
         creationCost,
+        importedNfts,
         assets: {
-          collectionImageUri: uploaded.collectionImageUri,
-          collectionMetadataUri: uploaded.collectionMetadataUri,
-          assetRootUri: uploaded.assetRootUri,
-          metadataRootUri: uploaded.metadataRootUri,
-          assetCount: uploaded.items.length,
-          reusableAssets: uploaded.reusableAssets,
+          collectionImageUri: bundle.collectionImageUri,
+          collectionMetadataUri: bundle.collectionMetadataUri,
+          assetRootUri: bundle.assetRootUri,
+          metadataRootUri: bundle.metadataRootUri,
+          assetCount: bundle.items.length,
+          reusableAssets: false,
         },
       });
+
       setState("success");
-      toast.success("Collection created", { description: `${collection.name} is live` });
+      toast.success("Collection imported", { description: `${num(supply)} NFTs indexed` });
       setTimeout(() => navigate({ to: "/collections/$id", params: { id: collection.id } }), 900);
     } catch (e) {
       setState("error");
-      toast.error(e instanceof Error ? e.message : "Creation failed");
+      toast.error(e instanceof Error ? e.message : "Import failed");
     }
   };
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
+    <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
       <div className="space-y-6">
-        <section className="surface-card space-y-4 p-6">
-          <h2 className="font-display text-lg font-semibold">Collection details</h2>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Collection name">
-              <Input value={name} onChange={(e) => setName(e.target.value)} />
-            </Field>
-            <Field label="Symbol">
-              <Input value={symbol} onChange={(e) => setSymbol(e.target.value.toUpperCase())} maxLength={6} />
-            </Field>
-          </div>
-          <Field label="Description">
-            <Textarea rows={4} value={description} onChange={(e) => setDescription(e.target.value)} />
-          </Field>
-        </section>
+        <ol className="flex flex-wrap gap-2">
+          {STEPS.map((label, index) => (
+            <li key={label}>
+              <button
+                type="button"
+                onClick={() => index <= step && setStep(index as Step)}
+                className={cn(
+                  "rounded-full border px-3 py-1 text-xs transition-colors",
+                  index === step
+                    ? "border-primary bg-primary/10 text-foreground"
+                    : "border-border text-muted-foreground",
+                )}
+              >
+                {index + 1}. {label}
+              </button>
+            </li>
+          ))}
+        </ol>
 
-        <section className="surface-card space-y-4 p-6">
-          <div className="flex items-center justify-between">
-            <h2 className="font-display text-lg font-semibold">Collection assets</h2>
-            <span className="text-xs text-muted-foreground">Stored on IPFS (mock)</span>
-          </div>
-
-          <AssetUploader
-            label="Collection artwork"
-            hint={`PNG, JPG, WEBP or GIF · up to ${(config.storage.maxCollectionAssetSize / 1024 / 1024).toFixed(0)}MB`}
-            accept={config.storage.supportedImageTypes.join(",")}
-            files={coverFile ? [coverFile] : []}
-            disabled={state === "pending"}
-            onPick={(files) => {
-              const file = files[0];
-              if (!file) return;
-              setBundle(null);
-              setCoverFile({ file, previewUrl: URL.createObjectURL(file) });
-            }}
-            onRemove={() => setCoverFile(null)}
-          />
-
-          <AssetUploader
-            label="NFT assets"
-            hint={`Name files 1.png, 2.png … to control token numbers · up to ${config.storage.maxNftAssets} files`}
-            accept={config.storage.supportedImageTypes.join(",")}
-            multiple
-            files={assetFiles}
-            disabled={state === "pending"}
-            onPick={(files) => {
-              setBundle(null);
-              setAssetFiles((prev) => [
-                ...prev,
-                ...files.map((file) => ({ file, previewUrl: URL.createObjectURL(file) })),
-              ]);
-            }}
-            onRemove={(index) => setAssetFiles((prev) => prev.filter((_, i) => i !== index))}
-          />
-
-          <label className="flex items-start gap-3 rounded-lg border border-border p-3 text-sm">
-            <input
-              type="checkbox"
-              className="mt-1"
-              checked={reusableAssets}
-              onChange={(e) => setReusableAssets(e.target.checked)}
-            />
-            <span>
-              Reuse assets across mints
-              <span className="block text-xs text-muted-foreground">
-                Off: you must upload one asset per token ({num(supply)} files).
-              </span>
-            </span>
-          </label>
-
-          <div className="rounded-lg border border-border p-3 text-sm">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Assets ready</span>
-              <span className="font-medium">
-                {assetFiles.length} / {reusableAssets ? assetFiles.length : num(supply)}
-              </span>
+        {step === 0 && (
+          <section className="surface-card space-y-4 p-6">
+            <h2 className="font-display text-lg font-semibold">Collection details</h2>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Collection name">
+                <Input value={name} onChange={(e) => setName(e.target.value)} />
+              </Field>
+              <Field label="Symbol">
+                <Input value={symbol} onChange={(e) => setSymbol(e.target.value.toUpperCase())} maxLength={6} />
+              </Field>
             </div>
+            <Field label="Description">
+              <Textarea rows={4} value={description} onChange={(e) => setDescription(e.target.value)} />
+            </Field>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <Field label="Mint price (HIVE)">
+                <Input inputMode="decimal" value={mintPrice} onChange={(e) => setMintPrice(e.target.value)} />
+              </Field>
+              <Field label="Creator fee (%)">
+                <Input inputMode="numeric" value={creatorFee} onChange={(e) => setCreatorFee(e.target.value)} />
+              </Field>
+              <Field label="Platform fee (%)">
+                <Input inputMode="numeric" value={platformFee} onChange={(e) => setPlatformFee(e.target.value)} />
+              </Field>
+            </div>
+            <AssetUploader
+              label="Collection artwork"
+              hint="Cover image for the collection — separate from the NFT images"
+              accept={config.storage.supportedImageTypes.join(",")}
+              files={coverFile ? [coverFile] : []}
+              onPick={(files) => {
+                const file = files[0];
+                if (!file) return;
+                setCoverFile({ file, previewUrl: URL.createObjectURL(file) });
+              }}
+              onRemove={() => setCoverFile(null)}
+            />
+            <Button className="w-full" disabled={!detailsValid} onClick={() => setStep(1)}>
+              Continue to upload
+            </Button>
+          </section>
+        )}
+
+        {step === 1 && (
+          <section className="surface-card space-y-5 p-6">
+            <div>
+              <h2 className="font-display text-lg font-semibold">Import your collection</h2>
+              <p className="text-xs text-muted-foreground">
+                Upload the metadata and images you already generated (NFTexport.io, HashLips, custom scripts).
+                Supply is taken from the metadata — nothing is generated here.
+              </p>
+            </div>
+
+            <ImportDropzone
+              label="Metadata"
+              hint="One JSON per NFT, or a single JSON array"
+              accept=".json,application/json"
+              files={metadataFiles}
+              disabled={analyzing}
+              onPick={(files) => setMetadataFiles((prev) => [...prev, ...files.filter((f) => /\.json$/i.test(f.name))])}
+              onClear={() => setMetadataFiles([])}
+            />
+
+            <ImportDropzone
+              label="Images"
+              hint={`Filenames must match the metadata image references · up to ${num(config.storage.maxNftAssets)} files`}
+              accept={config.storage.supportedImageTypes.join(",")}
+              files={imageFiles}
+              disabled={analyzing}
+              onPick={(files) => setImageFiles((prev) => [...prev, ...files])}
+              onClear={() => setImageFiles([])}
+            />
+
+            <label className="flex items-start gap-3 rounded-lg border border-border p-3 text-sm">
+              <input
+                type="checkbox"
+                className="mt-1"
+                checked={useImportOrder}
+                onChange={(e) => setUseImportOrder(e.target.checked)}
+              />
+              <span>
+                Assign token IDs by import order
+                <span className="block text-xs text-muted-foreground">
+                  Use when your metadata has no edition or #number to read.
+                </span>
+              </span>
+            </label>
+
+            <Button
+              className="w-full gap-2"
+              disabled={analyzing || metadataFiles.length === 0 || imageFiles.length === 0}
+              onClick={analyze}
+            >
+              {analyzing ? <Loader2 className="size-4 animate-spin" /> : <Search className="size-4" />}
+              {analyzing ? "Analysing…" : "Validate & analyse"}
+            </Button>
+          </section>
+        )}
+
+        {step === 2 && report && (
+          <>
+            <section className="surface-card space-y-4 p-6">
+              <h2 className="font-display text-lg font-semibold">Validation</h2>
+              <ValidationReport report={report} />
+              <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+                <Metric label="Metadata" value={num(report.statistics.totalNfts)} />
+                <Metric label="Images" value={num(report.statistics.totalImages)} />
+                <Metric label="Matched" value={num(report.statistics.matchedImages)} />
+                <Metric label="Unmatched" value={num(report.statistics.missingImages)} />
+              </dl>
+            </section>
+
+            <section className="surface-card space-y-4 p-6">
+              <h2 className="font-display text-lg font-semibold">Trait analysis</h2>
+              <TraitAnalysis report={report} />
+            </section>
+
+            <section className="surface-card space-y-4 p-6">
+              <h2 className="font-display text-lg font-semibold">Preview</h2>
+              <ImportPreviewGrid nfts={report.nfts} />
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => setStep(1)}>
+                  Back to files
+                </Button>
+                <Button className="flex-1" disabled={!report.ready} onClick={() => setStep(3)}>
+                  Continue to deploy
+                </Button>
+              </div>
+            </section>
+          </>
+        )}
+
+        {step === 3 && report && (
+          <section className="surface-card space-y-4 p-6">
+            <h2 className="font-display text-lg font-semibold">Deploy</h2>
+            <p className="text-sm text-muted-foreground">
+              {num(supply)} NFTs will be pinned to IPFS and registered as unminted. Buyers claim one of these
+              existing tokens when they mint.
+            </p>
             {upload ? (
-              <div className="mt-3 space-y-2">
+              <div className="space-y-2">
                 <Progress value={upload.total ? (upload.completed / upload.total) * 100 : 0} />
                 <p className="text-xs text-muted-foreground">
                   {upload.stage === "done" ? "Pinned to IPFS" : `${upload.stage} · ${upload.filename}`} (
-                  {upload.completed}/{upload.total})
+                  {num(upload.completed)}/{num(upload.total)})
                 </p>
               </div>
             ) : null}
-            {bundle ? (
-              <p className="mt-2 break-all font-mono text-[11px] text-muted-foreground">{bundle.assetRootUri}</p>
-            ) : null}
-            {assetIssues.length ? (
-              <ul className="mt-2 space-y-1 text-xs text-destructive">
-                {assetIssues.slice(0, 4).map((issue, i) => (
-                  <li key={i}>
-                    {issue.filename}: {issue.message}
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-          </div>
-        </section>
-
-        <section className="surface-card space-y-4 p-6">
-          <h2 className="font-display text-lg font-semibold">Economics</h2>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Total supply">
-              <Input inputMode="numeric" value={maxSupply} onChange={(e) => setMaxSupply(e.target.value)} />
-            </Field>
-            <Field label="Mint price (HIVE)">
-              <Input inputMode="decimal" value={mintPrice} onChange={(e) => setMintPrice(e.target.value)} />
-            </Field>
-            <Field label="Creator fee (%)">
-              <Input inputMode="numeric" value={creatorFee} onChange={(e) => setCreatorFee(e.target.value)} />
-            </Field>
-            <Field label="Platform fee (%)">
-              <Input inputMode="numeric" value={platformFee} onChange={(e) => setPlatformFee(e.target.value)} />
-            </Field>
-          </div>
-          <Field label="Metadata base URI">
-            <Input value={metadataBaseUri} onChange={(e) => setMetadataBaseUri(e.target.value)} />
-          </Field>
-        </section>
-
-        <section className="surface-card space-y-4 p-6">
-          <TraitLayerEditor layers={traitLayers} onChange={setTraitLayers} supply={supply} />
-        </section>
+            <TransactionStatus state={state} successLabel="Collection imported" />
+            <Button onClick={deploy} disabled={state === "pending"} size="lg" className="w-full gap-2">
+              {state === "pending" ? <Loader2 className="size-4 animate-spin" /> : <Rocket className="size-4" />}
+              {state === "pending" ? "Importing…" : "Import collection"}
+            </Button>
+          </section>
+        )}
       </div>
 
       <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">
         <section className="surface-card overflow-hidden">
           <img
-            src={coverFile?.previewUrl ?? image}
-            alt="Collection preview artwork"
+            src={coverFile?.previewUrl ?? fallbackImage}
+            alt="Collection cover artwork"
             className="aspect-square w-full object-cover"
           />
           <div className="space-y-3 p-5">
@@ -312,8 +410,8 @@ export function CreateCollectionForm() {
             </div>
             <dl className="grid grid-cols-2 gap-3 border-t border-border pt-3 text-sm">
               <div>
-                <dt className="text-xs text-muted-foreground">Supply</dt>
-                <dd className="font-display font-semibold">{num(Number(maxSupply) || 0)}</dd>
+                <dt className="text-xs text-muted-foreground">Imported supply</dt>
+                <dd className="font-display font-semibold">{num(supply)}</dd>
               </div>
               <div>
                 <dt className="text-xs text-muted-foreground">Mint price</dt>
@@ -326,7 +424,7 @@ export function CreateCollectionForm() {
         <section className="surface-card space-y-3 p-5 text-sm">
           <div className="flex justify-between">
             <span className="text-muted-foreground">
-              Deployment fee · {num(supply)} × {config.fees.nftCreationCostPerMint} HIVE
+              Import fee · {num(supply)} × {config.fees.nftCreationCostPerMint} HIVE
             </span>
             <span className="font-medium">{hive(creationCost)}</span>
           </div>
@@ -334,26 +432,22 @@ export function CreateCollectionForm() {
             <span className="text-muted-foreground">Your balance</span>
             <span className="font-medium">{hive(balance)}</span>
           </div>
-          <TransactionStatus state={state} successLabel="Collection deployed" />
-          <Button onClick={submit} disabled={state === "pending" || !valid} size="lg" className="w-full gap-2">
-            {state === "pending" ? <Loader2 className="size-4 animate-spin" /> : <Rocket className="size-4" />}
-            {state === "pending" ? "Deploying…" : "Create Collection"}
-          </Button>
         </section>
       </aside>
     </div>
   );
 }
 
-function Field({
-  label,
-  hint,
-  children,
-}: {
-  label: string;
-  hint?: string;
-  children: React.ReactNode;
-}) {
+function Metric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-border px-3 py-2">
+      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dd className="font-display text-lg font-semibold">{value}</dd>
+    </div>
+  );
+}
+
+function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
     <div className="space-y-2">
       <Label>{label}</Label>

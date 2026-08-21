@@ -3,6 +3,12 @@ import type { NFTAttribute, Rarity } from "@/lib/types";
 
 export type NftDocumentStatus = "owned" | "listed" | "burned";
 
+/**
+ * Mint lifecycle. Imported NFTs exist as UNMINTED records from the moment the
+ * collection is imported — minting only claims one of them.
+ */
+export type NftMintState = "UNMINTED" | "MINTED";
+
 export interface NftDocument {
   id: string;
   collectionId: string;
@@ -11,8 +17,16 @@ export interface NftDocument {
   name: string;
   description: string;
   image: string;
+  /** empty while UNMINTED. */
   owner: string;
+  mintState: NftMintState;
+  /** true when the record came from an imported collection package. */
+  imported?: boolean | undefined;
+  /** Original creator metadata, preserved verbatim. Never rewritten. */
+  sourceMetadata?: Record<string, unknown> | undefined;
   rarity: Rarity;
+  /** Derived display label from the import (may include Uncommon). */
+  rarityClassLabel?: string | undefined;
   mintNumber: number;
   maxSupply: number;
   metadataUri: string;

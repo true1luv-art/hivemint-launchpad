@@ -16,6 +16,8 @@ import { createCollectionDocument } from "@/lib/modules/nft-collections/nft-coll
 import { nftCollectionsRepository } from "@/lib/modules/nft-collections/nft-collections.repository";
 import { createNftAssetDocument } from "@/lib/modules/nft-assets/nft-assets.model";
 import { nftAssetsRepository } from "@/lib/modules/nft-assets/nft-assets.repository";
+import { createImportedNftDocument } from "@/lib/modules/nfts/nfts.model";
+import { nftsRepository } from "@/lib/modules/nfts/nfts.repository";
 import type { RarityConfig } from "@/lib/types";
 import type { PendingTransactionPayloads } from "@/lib/modules/transactions-pending/transactions-pending.types";
 
@@ -35,6 +37,23 @@ export interface AssetReference {
   imageUri: string;
   metadataUri: string;
   cid: string;
+}
+
+/** One imported NFT record — already authored by the creator. */
+export interface ImportedNftRecord {
+  tokenId: number;
+  name: string;
+  description: string;
+  /** original image reference from the creator metadata */
+  image: string;
+  imageUri: string;
+  metadataUri: string;
+  attributes: { trait: string; value: string | number }[];
+  rarityScore: number;
+  rarityRank: number;
+  rarityClass: string;
+  /** untouched source metadata document */
+  sourceMetadata: Record<string, unknown>;
 }
 
 export interface CollectionAssetBundle {
@@ -60,6 +79,8 @@ export interface CreateCollectionRequest {
   traitLayers?: TraitLayerConfig[] | undefined;
   metadataBaseUri?: string | undefined;
   assets: CollectionAssetBundle;
+  /** Imported NFT dataset — registered as UNMINTED records. */
+  importedNfts?: ImportedNftRecord[] | undefined;
 }
 
 const isIpfsUri = (value: string) => /^ipfs:\/\/[a-z0-9]{10,}(\/.+)?$/i.test(value);
@@ -157,6 +178,35 @@ export async function prepareCollection(request: CreateCollectionRequest): Promi
     ),
   );
 
+  // Register the IMPORTED NFTs as UNMINTED records. Nothing is generated:
+  // minting later claims one of these existing tokens.
+  if (request.importedNfts?.length) {
+    const assets = await nftAssetsRepository.listByCollection(doc.id);
+    const assetByToken = new Map(assets.map((asset) => [asset.tokenNumber, asset]));
+    const total = request.importedNfts.length;
+    await nftsRepository.insertMany(
+      request.importedNfts.map((item) =>
+        createImportedNftDocument({
+          collection: doc,
+          tokenId: item.tokenId,
+          name: item.name,
+          description: item.description,
+          image: item.image,
+          imageUri: item.imageUri,
+          metadataUri: item.metadataUri,
+          assetId: assetByToken.get(item.tokenId)?.id,
+          attributes: item.attributes,
+          rarityScore: item.rarityScore,
+          rarityRank: item.rarityRank,
+          rarityRankTotal: total,
+          rarityClass: item.rarityClass,
+          sourceMetadata: item.sourceMetadata,
+        }),
+      ),
+    );
+    logger.info("IMPORT", `Registered ${total} unminted NFTs for ${doc.symbol}`, { collectionId: doc.id });
+  }
+
   logger.info("ASSETS", `Indexed ${request.assets.items.length} assets for ${doc.symbol}`, {
     collectionId: doc.id,
     assetRootUri: request.assets.assetRootUri,
@@ -184,6 +234,7 @@ export async function prepareCollection(request: CreateCollectionRequest): Promi
       metadataRootUri: request.assets.metadataRootUri,
       assetCount: request.assets.items.length,
       reusableAssets: request.assets.reusableAssets,
+      importedNftCount: request.importedNfts?.length ?? 0,
       creationCost: cost,
     },
   };

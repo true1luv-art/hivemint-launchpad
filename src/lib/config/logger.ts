@@ -15,6 +15,7 @@ export type LogScope =
   | "MARKETPLACE"
   | "STORAGE"
   | "ASSETS"
+  | "IMPORT"
   | "AUTH";
 
 function should(level: keyof typeof ORDER) {

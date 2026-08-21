@@ -57,6 +57,24 @@ export const traitLayerSchema = z.object({
   values: z.array(traitValueSchema).min(1).max(500),
 });
 
+/** An imported NFT record. Traits come from the creator's metadata verbatim. */
+export const importedNftSchema = z.object({
+  tokenId: z.number().int().min(0),
+  name: z.string().trim().min(1).max(200),
+  description: z.string().max(2000).default(""),
+  image: z.string().trim().max(500).default(""),
+  imageUri: ipfsUri,
+  metadataUri: ipfsUri,
+  attributes: z
+    .array(z.object({ trait: z.string().trim().min(1).max(120), value: z.union([z.string().max(200), z.number()]) }))
+    .max(100)
+    .default([]),
+  rarityScore: z.number().nonnegative(),
+  rarityRank: z.number().int().min(0),
+  rarityClass: z.string().trim().min(1).max(40),
+  sourceMetadata: z.record(z.string(), z.unknown()).default({}),
+});
+
 export const createCollectionSchema = z.object({
   requestId,
   name: z.string().trim().min(3).max(60),
@@ -74,13 +92,35 @@ export const createCollectionSchema = z.object({
   creatorFee: z.number().min(0).max(50),
   platformFee: z.number().min(0).max(50),
   rarities: z.array(raritySchema).min(1).max(10),
-  traitLayers: z.array(traitLayerSchema).min(1).max(50),
+  /** Legacy generative config — optional, the importer never sends it. */
+  traitLayers: z.array(traitLayerSchema).max(50).optional(),
+  importedNfts: z.array(importedNftSchema).max(100_000).optional(),
   metadataBaseUri: z.string().trim().max(300).optional(),
   assets: collectionAssetsSchema,
 }).superRefine((data, ctx) => {
-  // Weights, layers and combination coverage are validated by one engine.
-  for (const issue of validateTraitConfig(data.traitLayers as TraitLayerConfig[], data.maxSupply)) {
-    ctx.addIssue({ code: "custom", path: ["traitLayers"], message: issue.message });
+  // Legacy generative path only: validate weights/coverage when layers are sent.
+  if (data.traitLayers?.length) {
+    for (const issue of validateTraitConfig(data.traitLayers as TraitLayerConfig[], data.maxSupply)) {
+      ctx.addIssue({ code: "custom", path: ["traitLayers"], message: issue.message });
+    }
+  }
+
+  // Imported dataset: token ids must be unique and cover the declared supply.
+  if (data.importedNfts?.length) {
+    const ids = new Set<number>();
+    for (const nft of data.importedNfts) {
+      if (ids.has(nft.tokenId)) {
+        ctx.addIssue({ code: "custom", path: ["importedNfts"], message: `Duplicate token id ${nft.tokenId}` });
+      }
+      ids.add(nft.tokenId);
+    }
+    if (data.importedNfts.length !== data.maxSupply) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["importedNfts"],
+        message: `Imported ${data.importedNfts.length} NFTs but maximum supply is ${data.maxSupply}`,
+      });
+    }
   }
 });
 

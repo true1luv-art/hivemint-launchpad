@@ -356,15 +356,23 @@ export class SmartContractWorker {
           : null))
       : null;
 
-    const nft = createNftDocument({
-      collection,
-      mintNumber,
-      owner: tx.hiveAccount,
-      mintTransactionId: tx.transactionId,
-      seedKey: `${collection.id}-${mintNumber}-${tx.transactionId}`,
-    });
+    // Imported collections already contain every NFT: minting CLAIMS one
+    // existing UNMINTED record instead of generating anything.
+    const imported = (await nftsRepository.countUnminted(collection.id)) > 0;
+    const nft = imported
+      ? ((await nftsRepository.claimUnminted(collection.id, tx.hiveAccount, tx.transactionId)) ??
+        (() => {
+          throw new PermanentError("No unminted NFTs remain in this collection");
+        })())
+      : createNftDocument({
+          collection,
+          mintNumber,
+          owner: tx.hiveAccount,
+          mintTransactionId: tx.transactionId,
+          seedKey: `${collection.id}-${mintNumber}-${tx.transactionId}`,
+        });
 
-    if (asset) {
+    if (!imported && asset) {
       nft.imageUri = asset.imageUri;
       nft.metadataUri = asset.metadataUri;
       nft.assetId = asset.id;
@@ -396,9 +404,13 @@ export class SmartContractWorker {
         metadataUri: nft.metadataUri,
       });
 
-      await nftsRepository.insert(nft);
+      if (!imported) await nftsRepository.insert(nft);
     } catch (error) {
       await nftCollectionsRepository.releaseMint(collection.id);
+      if (imported) {
+        // Hand the claimed token back to the unminted pool.
+        await nftsRepository.patch(nft.id, { mintState: "UNMINTED", owner: "", mintTransactionId: "" });
+      }
       throw error;
     }
 

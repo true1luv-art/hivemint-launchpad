@@ -4,7 +4,7 @@ import { buildNFT, RANK_POOL_CAP } from "@/lib/mock-data";
 import { generateInventory } from "@/lib/traits/generator";
 import { buildCollectionTraitLayers } from "@/lib/traits/presets";
 import type { TraitLayerConfig } from "@/lib/traits/types";
-import type { Collection } from "@/lib/types";
+import type { Collection, NFTAttribute, Rarity } from "@/lib/types";
 import type { CollectionDocument } from "../nft-collections/nft-collections.types";
 import { toCollectionView } from "../nft-collections/nft-collections.model";
 import type { NftDocument } from "./nfts.types";
@@ -70,6 +70,7 @@ export function createNftDocument(input: BuildNftInput): NftDocument {
     description: base.description,
     image: base.image,
     owner: input.owner,
+    mintState: "MINTED",
     rarity: base.rarityClass,
     mintNumber: input.mintNumber,
     maxSupply: input.collection.maxSupply,
@@ -82,6 +83,85 @@ export function createNftDocument(input: BuildNftInput): NftDocument {
     estimatedValue: base.estimatedValue,
     status: "owned",
     mintTransactionId: input.mintTransactionId,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  };
+}
+
+/* ------------------------------------------------------------------ */
+/* imported collections                                                */
+/* ------------------------------------------------------------------ */
+
+/** Display label -> legacy 4-bucket rarity used by existing UI badges. */
+export function toLegacyRarity(label: string): Rarity {
+  switch (label) {
+    case "Legendary":
+    case "Epic":
+    case "Rare":
+      return label;
+    default:
+      return "Common";
+  }
+}
+
+export interface ImportedNftInput {
+  collection: CollectionDocument;
+  tokenId: number;
+  name: string;
+  description: string;
+  image: string;
+  imageUri: string;
+  metadataUri: string;
+  assetId?: string | undefined;
+  attributes: NFTAttribute[];
+  rarityScore: number;
+  rarityRank: number;
+  rarityRankTotal: number;
+  rarityClass: string;
+  sourceMetadata: Record<string, unknown>;
+}
+
+/**
+ * Registers an EXISTING imported NFT as an UNMINTED record.
+ * Nothing is generated here: traits, name and image come from the creator's
+ * metadata, and rarity was calculated from the collection's real distribution.
+ */
+export function createImportedNftDocument(input: ImportedNftInput): NftDocument {
+  const timestamp = nowIso();
+  return {
+    id: newId("nft"),
+    collectionId: input.collection.id,
+    collectionName: input.collection.name,
+    tokenId: input.tokenId,
+    name: input.name,
+    description: input.description,
+    image: input.image,
+    owner: "",
+    mintState: "UNMINTED",
+    imported: true,
+    sourceMetadata: input.sourceMetadata,
+    rarity: toLegacyRarity(input.rarityClass),
+    rarityClassLabel: input.rarityClass,
+    mintNumber: input.tokenId,
+    maxSupply: input.collection.maxSupply,
+    metadataUri: input.metadataUri,
+    imageUri: input.imageUri,
+    assetId: input.assetId,
+    traits: input.attributes.map((attribute) => ({
+      layerId: String(attribute.trait),
+      layerName: String(attribute.trait),
+      traitValueId: `${attribute.trait}:${attribute.value}`,
+      traitValueName: String(attribute.value),
+      weight: 0,
+      probability: 0,
+    })),
+    rarityScore: input.rarityScore,
+    rarityRank: input.rarityRank,
+    rarityRankTotal: input.rarityRankTotal,
+    attributes: input.attributes,
+    estimatedValue: input.collection.mintPrice,
+    status: "owned",
+    mintTransactionId: "",
     createdAt: timestamp,
     updatedAt: timestamp,
   };
@@ -103,6 +183,8 @@ export function toNftView(doc: NftDocument) {
     rarityRank: doc.rarityRank,
     rarityRankTotal: doc.rarityRankTotal,
     rarityClass: doc.rarity,
+    rarityClassLabel: doc.rarityClassLabel ?? doc.rarity,
+    mintState: doc.mintState ?? "MINTED",
     mintNumber: doc.mintNumber,
     maxSupply: doc.maxSupply,
     owner: doc.owner,
