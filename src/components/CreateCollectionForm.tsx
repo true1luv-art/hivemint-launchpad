@@ -7,12 +7,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { RarityChart } from "@/components/RarityChart";
+import { TraitLayerEditor } from "@/components/TraitLayerEditor";
 import { TransactionStatus, type TxState } from "@/components/TransactionStatus";
 import { generateArtwork } from "@/lib/art";
 import { hive, num } from "@/lib/format";
 import { DEFAULT_RARITIES } from "@/lib/mock-data";
-import type { Rarity, RarityConfig } from "@/lib/types";
+import type { RarityConfig } from "@/lib/types";
+import { buildTraitLayers } from "@/lib/traits/presets";
+import { validateTraitConfig } from "@/lib/traits/validation";
+import type { TraitLayerConfig } from "@/lib/traits/types";
 import { collectionCreationCost, config } from "@/lib/config/config";
 import { AssetUploader, type PickedFile } from "@/components/AssetUploader";
 import { Progress } from "@/components/ui/progress";
@@ -40,7 +43,8 @@ export function CreateCollectionForm() {
   const [creatorFee, setCreatorFee] = useState("85");
   const [platformFee, setPlatformFee] = useState("5");
   const [metadataBaseUri, setMetadataBaseUri] = useState("https://meta.hivemint.app/embs/");
-  const [rarities, setRarities] = useState<RarityConfig[]>(DEFAULT_RARITIES.map((r) => ({ ...r })));
+  const [rarities] = useState<RarityConfig[]>(DEFAULT_RARITIES.map((r) => ({ ...r })));
+  const [traitLayers, setTraitLayers] = useState<TraitLayerConfig[]>(() => buildTraitLayers("draft"));
   const [state, setState] = useState<TxState>("idle");
   const [imageSeed, setImageSeed] = useState(1);
   const [coverFile, setCoverFile] = useState<PickedFile | null>(null);
@@ -85,25 +89,24 @@ export function CreateCollectionForm() {
     });
   }, [coverFile, assetFiles, name, symbol, description, supply, mintPrice, reusableAssets]);
 
-  const rarityTotal = rarities.reduce((s, r) => s + r.weight, 0);
+  const traitIssues = validateTraitConfig(traitLayers, supply);
   const valid =
     name.trim().length > 1 &&
     symbol.trim().length > 1 &&
     Number(maxSupply) > 0 &&
     Number(mintPrice) > 0 &&
-    rarityTotal === 100 &&
+    traitIssues.length === 0 &&
     !!coverFile &&
     assetFiles.length > 0 &&
     assetIssues.length === 0;
-
-  const setWeight = (rarity: Rarity, weight: number) =>
-    setRarities((rs) => rs.map((r) => (r.rarity === rarity ? { ...r, weight } : r)));
 
   const submit = async () => {
     if (!valid || !coverFile) {
       toast.error("Check the form", {
         description:
-          assetIssues[0]?.message ?? "Upload the collection artwork and NFT assets, and make rarity total 100%.",
+          assetIssues[0]?.message ??
+          traitIssues[0]?.message ??
+          "Upload the collection artwork and NFT assets, and configure your trait layers.",
       });
       return;
     }
@@ -145,6 +148,7 @@ export function CreateCollectionForm() {
         creatorFee: Number(creatorFee),
         platformFee: Number(platformFee),
         rarities,
+        traitLayers,
         metadataBaseUri: uploaded.metadataRootUri,
         creationCost,
         assets: {
@@ -289,31 +293,7 @@ export function CreateCollectionForm() {
         </section>
 
         <section className="surface-card space-y-4 p-6">
-          <div className="flex items-center justify-between">
-            <h2 className="font-display text-lg font-semibold">Rarity configuration</h2>
-            <span
-              className={cn(
-                "rounded-full border px-3 py-1 text-xs font-medium",
-                rarityTotal === 100
-                  ? "border-success/30 bg-success/10 text-success"
-                  : "border-destructive/40 bg-destructive/10 text-destructive",
-              )}
-            >
-              Total = {rarityTotal}%
-            </span>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            {rarities.map((r) => (
-              <Field key={r.rarity} label={r.rarity}>
-                <Input
-                  inputMode="numeric"
-                  value={String(r.weight)}
-                  onChange={(e) => setWeight(r.rarity, Number(e.target.value) || 0)}
-                />
-              </Field>
-            ))}
-          </div>
-          <RarityChart rarities={rarities} />
+          <TraitLayerEditor layers={traitLayers} onChange={setTraitLayers} supply={supply} />
         </section>
       </div>
 

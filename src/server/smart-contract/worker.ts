@@ -12,7 +12,6 @@ import { collectionCreationCost, config } from "@/lib/config/config";
 import { logger } from "@/lib/config/logger";
 import { COLLECTION_CREATION_FEE, MARKETPLACE_FEE_RATE, MARKET_ACCOUNT, PLATFORM_ACCOUNT } from "@/features/types/constants";
 import { APP_EVENTS, emitAppEvent } from "@/features/events/action";
-import { pickRarity } from "@/lib/mock-data";
 import type { RarityConfig } from "@/lib/types";
 import { activityRepository } from "@/lib/modules/activity/activity.repository";
 import { createCollectionDocument } from "@/lib/modules/nft-collections/nft-collections.model";
@@ -361,8 +360,6 @@ export class SmartContractWorker {
       collection,
       mintNumber,
       owner: tx.hiveAccount,
-      // Weighted random selection driven by the collection's rarity configuration.
-      rarity: pickRarity(collection.rarities, Math.random),
       mintTransactionId: tx.transactionId,
       seedKey: `${collection.id}-${mintNumber}-${tx.transactionId}`,
     });
