@@ -28,6 +28,7 @@ export function createCollectionDocument(input: CreateCollectionInput): Collecti
     creatorFee: input.creatorFee,
     platformFee: input.platformFee,
     rarities: input.rarities,
+    traitLayers: input.traitLayers,
     metadataBaseUri: input.metadataBaseUri || input.metadataRootUri || `https://meta.hivemint.app/${symbol.toLowerCase()}/`,
     status: input.status ?? "active",
     creationState: input.creationState ?? "ACTIVE",
@@ -61,6 +62,7 @@ export function toCollectionView(doc: CollectionDocument) {
     creatorFee: doc.creatorFee,
     platformFee: doc.platformFee,
     rarities: doc.rarities,
+    traitLayers: doc.traitLayers ?? [],
     status:
       doc.status === "sold_out" || doc.minted >= doc.maxSupply
         ? ("Sold Out" as const)

@@ -56,6 +56,7 @@ export interface CreateCollectionRequest {
   creatorFee: number;
   platformFee: number;
   rarities: RarityConfig[];
+  traitLayers: TraitLayerConfig[];
   metadataBaseUri?: string | undefined;
   assets: CollectionAssetBundle;
 }
@@ -125,6 +126,7 @@ export async function prepareCollection(request: CreateCollectionRequest): Promi
       creatorFee: request.creatorFee,
       platformFee: request.platformFee,
       rarities: request.rarities,
+      traitLayers: request.traitLayers,
       metadataBaseUri: request.metadataBaseUri,
       // Not live yet: only a confirmed CREATE_COLLECTION flips this to ACTIVE.
       status: "draft",
@@ -173,6 +175,7 @@ export async function prepareCollection(request: CreateCollectionRequest): Promi
       creatorFee: doc.creatorFee,
       platformFee: doc.platformFee,
       rarities: doc.rarities,
+      traitLayers: doc.traitLayers ?? [],
       metadataBaseUri: doc.metadataBaseUri,
       collectionImageUri: request.assets.collectionImageUri,
       collectionMetadataUri: request.assets.collectionMetadataUri,
