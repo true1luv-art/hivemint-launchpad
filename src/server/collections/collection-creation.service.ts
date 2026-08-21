@@ -10,6 +10,7 @@
  * the transaction.
  */
 import { collectionCreationCost } from "@/lib/config/config";
+import type { TraitLayerConfig } from "@/lib/traits/types";
 import { logger } from "@/lib/config/logger";
 import { createCollectionDocument } from "@/lib/modules/nft-collections/nft-collections.model";
 import { nftCollectionsRepository } from "@/lib/modules/nft-collections/nft-collections.repository";
@@ -56,7 +57,7 @@ export interface CreateCollectionRequest {
   creatorFee: number;
   platformFee: number;
   rarities: RarityConfig[];
-  traitLayers: TraitLayerConfig[];
+  traitLayers?: TraitLayerConfig[] | undefined;
   metadataBaseUri?: string | undefined;
   assets: CollectionAssetBundle;
 }
