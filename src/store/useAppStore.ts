@@ -34,6 +34,8 @@ export interface CreateCollectionInput {
   creatorFee: number;
   platformFee: number;
   rarities: RarityConfig[];
+  /** Generative configuration: layers -> values -> weights. */
+  traitLayers?: TraitLayerConfig[];
   metadataBaseUri: string;
   /** IPFS reference bundle from `uploadCollectionAssets` — required once assets exist. */
   assets?: Collection["storage"];
